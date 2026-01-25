@@ -518,6 +518,7 @@ export type Database = {
           id: string
           lote_id: string
           nf_emitida: boolean
+          nf_url: string | null
           numero_vidas: number
           obra_id: string | null
           updated_at: string
@@ -530,6 +531,7 @@ export type Database = {
           id?: string
           lote_id: string
           nf_emitida?: boolean
+          nf_url?: string | null
           numero_vidas?: number
           obra_id?: string | null
           updated_at?: string
@@ -542,6 +544,7 @@ export type Database = {
           id?: string
           lote_id?: string
           nf_emitida?: boolean
+          nf_url?: string | null
           numero_vidas?: number
           obra_id?: string | null
           updated_at?: string
