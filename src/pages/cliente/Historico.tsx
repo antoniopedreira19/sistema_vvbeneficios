@@ -8,7 +8,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
-  Calendar
+  Calendar,
+  ExternalLink
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,27 @@ const Historico = () => {
     },
     enabled: !!empresaId,
   });
+
+  // Buscar notas fiscais para os lotes
+  const loteIds = lotesData?.data?.map((l: any) => l.id) || [];
+  const { data: notasFiscais } = useQuery({
+    queryKey: ["notas-fiscais-cliente", loteIds],
+    queryFn: async () => {
+      if (loteIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("notas_fiscais")
+        .select("lote_id, nf_emitida, nf_url")
+        .in("lote_id", loteIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: loteIds.length > 0,
+  });
+
+  // Criar mapa de notas fiscais por lote_id
+  const notasFiscaisMap = new Map(
+    notasFiscais?.map((nf: any) => [nf.lote_id, nf]) || []
+  );
 
   const lotes = lotesData?.data || [];
   const totalCount = lotesData?.count || 0;
@@ -241,32 +263,64 @@ const Historico = () => {
                     <TableHead>Valor Total</TableHead>
                     <TableHead>Enviado em</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>NF Emitida</TableHead>
+                    <TableHead>Anexo NF</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {lotes.length > 0 ? (
-                    lotes.map((lote: any) => (
-                      <TableRow key={lote.id} className="cursor-pointer hover:bg-muted/50">
-                        <TableCell className="font-medium">{lote.competencia}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-muted-foreground" />
-                            {lote.obras?.nome || "-"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{lote.total_colaboradores || 0} vidas</Badge>
-                        </TableCell>
-                        <TableCell>{formatCurrency(lote.valor_total)}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {lote.created_at ? format(new Date(lote.created_at), "dd/MM/yyyy HH:mm") : "-"}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(lote.status)}</TableCell>
-                      </TableRow>
-                    ))
+                    lotes.map((lote: any) => {
+                      const notaFiscal = notasFiscaisMap.get(lote.id);
+                      return (
+                        <TableRow key={lote.id} className="cursor-pointer hover:bg-muted/50">
+                          <TableCell className="font-medium">{lote.competencia}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              {lote.obras?.nome || "-"}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{lote.total_colaboradores || 0} vidas</Badge>
+                          </TableCell>
+                          <TableCell>{formatCurrency(lote.valor_total)}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {lote.created_at ? format(new Date(lote.created_at), "dd/MM/yyyy HH:mm") : "-"}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(lote.status)}</TableCell>
+                          <TableCell>
+                            {notaFiscal ? (
+                              notaFiscal.nf_emitida ? (
+                                <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Sim</Badge>
+                              ) : (
+                                <Badge variant="secondary">Não</Badge>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {notaFiscal?.nf_url ? (
+                              <a
+                                href={notaFiscal.nf_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                              >
+                                <FileText className="h-4 w-4" />
+                                Ver NF
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                         Nenhuma lista enviada encontrada.
                       </TableCell>
                     </TableRow>
