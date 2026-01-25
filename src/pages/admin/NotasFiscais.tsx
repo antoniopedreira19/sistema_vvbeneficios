@@ -277,7 +277,7 @@ const NotasFiscais = () => {
                             ) : (
                               // Sem arquivo - mostrar input de upload
                               <div className="flex items-center gap-2">
-                                <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-2 text-xs border rounded-md hover:bg-accent">
+                                <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-2 text-xs border rounded-md hover:bg-primary hover:text-primary-foreground">
                                   <Upload className="h-3 w-3" />
                                   Anexar NF
                                   <Input
