@@ -85,13 +85,42 @@ export function CRMList() {
         .eq("id", empresaId);
       if (error) throw error;
     },
+    onMutate: async ({ empresaId, newStatus }) => {
+      // Cancelar queries em andamento
+      await queryClient.cancelQueries({ queryKey: ["empresas-ativas"] });
+      
+      // Snapshot do estado anterior
+      const previousEmpresas = queryClient.getQueryData<EmpresaCRM[]>(["empresas-ativas"]);
+      
+      // Update otimista - remover da lista se status não for mais "ativa"
+      if (newStatus !== "ativa") {
+        queryClient.setQueryData<EmpresaCRM[]>(["empresas-ativas"], (old) => 
+          old?.filter(e => e.id !== empresaId) || []
+        );
+      } else {
+        queryClient.setQueryData<EmpresaCRM[]>(["empresas-ativas"], (old) => 
+          old?.map(e => e.id === empresaId ? { ...e, status: newStatus as any } : e) || []
+        );
+      }
+      
+      return { previousEmpresas };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["empresas-ativas"] });
       toast.success("Status atualizado com sucesso!");
       setDetailDialogOpen(false);
     },
-    onError: () => {
+    onError: (error, variables, context) => {
+      // Reverter para o estado anterior em caso de erro
+      if (context?.previousEmpresas) {
+        queryClient.setQueryData(["empresas-ativas"], context.previousEmpresas);
+      }
       toast.error("Erro ao atualizar status");
+    },
+    onSettled: () => {
+      // Sincronizar com o servidor
+      queryClient.invalidateQueries({ queryKey: ["empresas-ativas"] });
+      queryClient.invalidateQueries({ queryKey: ["empresas-inativas"] });
+      queryClient.invalidateQueries({ queryKey: ["crm-empresas"] });
     },
   });
 
