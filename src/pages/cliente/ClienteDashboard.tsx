@@ -250,22 +250,47 @@ const ClienteDashboard = () => {
     const previousHistorico = queryClient.getQueryData<any[]>(["historico-lotes", empresaId]);
     
     // UPDATE OTIMISTA: Atualizar UI imediatamente
-    const updateOtimista = (loteId: string) => {
+    const updateOtimista = (loteId: string, isNovoLote: boolean) => {
+      const novoLoteData = {
+        id: loteId,
+        empresa_id: empresaId,
+        obra_id: obra.id,
+        competencia: competenciaAtualCapitalized,
+        status: "aguardando_processamento",
+        total_colaboradores: obra.totalVidas,
+        obras: { nome: obra.nome },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
       queryClient.setQueryData<any[]>(["lotes-atuais", empresaId, competenciaAtualCapitalized], (old) => {
-        if (!old) return old;
-        return old.map(lote => 
-          lote.obra_id === obra.id 
-            ? { ...lote, id: loteId, status: "aguardando_processamento" }
-            : lote
-        );
+        if (!old) return [novoLoteData];
+        
+        // Se o lote já existe na lista, atualizar
+        const existeNaLista = old.some(lote => lote.obra_id === obra.id);
+        if (existeNaLista) {
+          return old.map(lote => 
+            lote.obra_id === obra.id 
+              ? { ...lote, id: loteId, status: "aguardando_processamento" }
+              : lote
+          );
+        }
+        // Se não existe, adicionar
+        return [...old, novoLoteData];
       });
+      
       queryClient.setQueryData<any[]>(["historico-lotes", empresaId], (old) => {
-        if (!old) return old;
-        return old.map(lote => 
-          lote.obra_id === obra.id && lote.competencia === competenciaAtualCapitalized
-            ? { ...lote, id: loteId, status: "aguardando_processamento" }
-            : lote
-        );
+        if (!old) return [novoLoteData];
+        
+        const existeNaLista = old.some(lote => lote.obra_id === obra.id && lote.competencia === competenciaAtualCapitalized);
+        if (existeNaLista) {
+          return old.map(lote => 
+            lote.obra_id === obra.id && lote.competencia === competenciaAtualCapitalized
+              ? { ...lote, id: loteId, status: "aguardando_processamento" }
+              : lote
+          );
+        }
+        return [novoLoteData, ...old];
       });
     };
     
@@ -301,7 +326,7 @@ const ClienteDashboard = () => {
       }
       
       // Aplicar update otimista AGORA que temos o loteId
-      updateOtimista(loteId);
+      updateOtimista(loteId, !obra.lote?.id);
       setIsEnvioDialogOpen(false); // Fechar dialog imediatamente
       
       // 2. Buscar colaboradores ativos desta obra
