@@ -241,9 +241,43 @@ const ClienteDashboard = () => {
     setIsEnvioDialogOpen(true);
   };
 
-  // Handler para selecionar obra e enviar
+  // Handler para selecionar obra e enviar (com update otimista)
   const handleSelecionarObra = async (obra: any) => {
     setEnviando(true);
+    
+    // Snapshot dos dados atuais para rollback
+    const previousLotesAtuais = queryClient.getQueryData<any[]>(["lotes-atuais", empresaId, competenciaAtualCapitalized]);
+    const previousHistorico = queryClient.getQueryData<any[]>(["historico-lotes", empresaId]);
+    
+    // UPDATE OTIMISTA: Atualizar UI imediatamente
+    const updateOtimista = (loteId: string) => {
+      queryClient.setQueryData<any[]>(["lotes-atuais", empresaId, competenciaAtualCapitalized], (old) => {
+        if (!old) return old;
+        return old.map(lote => 
+          lote.obra_id === obra.id 
+            ? { ...lote, id: loteId, status: "aguardando_processamento" }
+            : lote
+        );
+      });
+      queryClient.setQueryData<any[]>(["historico-lotes", empresaId], (old) => {
+        if (!old) return old;
+        return old.map(lote => 
+          lote.obra_id === obra.id && lote.competencia === competenciaAtualCapitalized
+            ? { ...lote, id: loteId, status: "aguardando_processamento" }
+            : lote
+        );
+      });
+    };
+    
+    // Função para rollback em caso de erro
+    const rollback = () => {
+      if (previousLotesAtuais) {
+        queryClient.setQueryData(["lotes-atuais", empresaId, competenciaAtualCapitalized], previousLotesAtuais);
+      }
+      if (previousHistorico) {
+        queryClient.setQueryData(["historico-lotes", empresaId], previousHistorico);
+      }
+    };
     
     try {
       // 1. Criar ou buscar lote para esta competência/obra
@@ -265,6 +299,10 @@ const ClienteDashboard = () => {
         if (loteError) throw loteError;
         loteId = novoLote.id;
       }
+      
+      // Aplicar update otimista AGORA que temos o loteId
+      updateOtimista(loteId);
+      setIsEnvioDialogOpen(false); // Fechar dialog imediatamente
       
       // 2. Buscar colaboradores ativos desta obra
       const { data: colaboradores, error: colabError } = await supabase
@@ -309,7 +347,7 @@ const ClienteDashboard = () => {
         if (snapshotError) throw snapshotError;
       }
       
-      // 4. Atualizar status do lote para aguardando_processamento
+      // 4. Atualizar status do lote para aguardando_processamento no Supabase
       const { error: updateError } = await supabase
         .from("lotes_mensais")
         .update({ 
@@ -321,16 +359,18 @@ const ClienteDashboard = () => {
 
       if (updateError) throw updateError;
 
-      // Atualizar dados ANTES de mostrar sucesso
-      await queryClient.invalidateQueries({ queryKey: ["lotes-atuais"] });
-      await queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
-      await queryClient.invalidateQueries({ queryKey: ["obras-empresa-com-colaboradores"] });
+      // Invalidar queries para sincronizar com servidor (em background)
+      queryClient.invalidateQueries({ queryKey: ["lotes-atuais"] });
+      queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
+      queryClient.invalidateQueries({ queryKey: ["obras-empresa-com-colaboradores"] });
       
       toast.success(`Lista de ${obra.nome} enviada para processamento!`);
-      setIsEnvioDialogOpen(false);
     } catch (error: any) {
       console.error("Erro ao enviar lista:", error);
+      // ROLLBACK: Voltar para estado anterior
+      rollback();
       toast.error(error?.message || "Erro ao enviar lista. Tente novamente.");
+      setIsEnvioDialogOpen(true); // Reabrir dialog em caso de erro
     } finally {
       setEnviando(false);
     }
