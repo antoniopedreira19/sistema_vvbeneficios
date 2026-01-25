@@ -180,6 +180,18 @@ const ClienteDashboard = () => {
     enabled: !!empresaId,
   });
 
+  // Ordem de progressão dos status (para evitar regressão no realtime)
+  const statusOrder: Record<string, number> = {
+    "rascunho": 0,
+    "aguardando_processamento": 1,
+    "em_analise_seguradora": 2,
+    "com_pendencia": 3,
+    "aguardando_reanalise": 4,
+    "em_reanalise": 5,
+    "concluido": 6,
+    "faturado": 7
+  };
+
   // Realtime subscription para lotes_mensais - UPDATE DIRETO NO CACHE
   useEffect(() => {
     if (!empresaId) return;
@@ -200,24 +212,38 @@ const ClienteDashboard = () => {
           
           // Atualizar cache diretamente ao invés de invalidar (evita sobrescrever update otimista)
           if (payload.eventType === 'UPDATE' && newData) {
-            // Atualizar lotes-atuais
+            // Atualizar lotes-atuais - SÓ se o novo status for MAIOR que o atual (evita regressão)
             queryClient.setQueryData<any[]>(["lotes-atuais", empresaId, competenciaAtualCapitalized], (old) => {
               if (!old) return old;
-              return old.map(lote => 
-                lote.id === newData.id 
-                  ? { ...lote, ...newData }
-                  : lote
-              );
+              return old.map(lote => {
+                if (lote.id !== newData.id) return lote;
+                
+                // Verificar se é progressão válida (não regredir status)
+                const currentOrder = statusOrder[lote.status] ?? -1;
+                const newOrder = statusOrder[newData.status] ?? -1;
+                
+                // Só atualizar se o novo status for igual ou maior
+                if (newOrder >= currentOrder) {
+                  return { ...lote, ...newData };
+                }
+                return lote; // Manter estado atual se for regressão
+              });
             });
             
-            // Atualizar historico
+            // Atualizar historico com mesma lógica
             queryClient.setQueryData<any[]>(["historico-lotes", empresaId], (old) => {
               if (!old) return old;
-              return old.map(lote => 
-                lote.id === newData.id 
-                  ? { ...lote, ...newData }
-                  : lote
-              );
+              return old.map(lote => {
+                if (lote.id !== newData.id) return lote;
+                
+                const currentOrder = statusOrder[lote.status] ?? -1;
+                const newOrder = statusOrder[newData.status] ?? -1;
+                
+                if (newOrder >= currentOrder) {
+                  return { ...lote, ...newData };
+                }
+                return lote;
+              });
             });
           } else if (payload.eventType === 'INSERT' && newData) {
             // Para novos lotes, adicionar ao cache se for da competência atual
