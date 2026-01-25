@@ -277,16 +277,20 @@ const NotasFiscais = () => {
                             ) : (
                               // Sem arquivo - mostrar input de upload
                               <div className="flex items-center gap-2">
-                                <Input
-                                  type="file"
-                                  accept=".pdf,.png,.jpg,.jpeg"
-                                  className="w-[180px] text-xs"
-                                  disabled={isUploading}
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleFileUpload(nf, file);
-                                  }}
-                                />
+                                <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-2 text-xs border rounded-md hover:bg-accent">
+                                  <Upload className="h-3 w-3" />
+                                  Anexar NF
+                                  <Input
+                                    type="file"
+                                    accept=".pdf,.png,.jpg,.jpeg"
+                                    className="hidden"
+                                    disabled={isUploading}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleFileUpload(nf, file);
+                                    }}
+                                  />
+                                </label>
                                 {isUploading && (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 )}
