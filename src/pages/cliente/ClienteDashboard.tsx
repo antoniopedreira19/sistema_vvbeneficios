@@ -1,0 +1,767 @@
+import { useState, useEffect } from "react";
+import { 
+  Send, 
+  Users, 
+  FileText, 
+  Clock, 
+  CheckCircle2, 
+  AlertTriangle,
+  ArrowRight,
+  Calendar,
+  Loader2,
+  FileSpreadsheet,
+  Building2,
+  AlertCircle
+} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useUserRole } from "@/hooks/useUserRole";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { CorrigirPendenciasDialog } from "@/components/cliente/CorrigirPendenciasDialog";
+import { LoteDetalhesDialog } from "@/components/cliente/LoteDetalhesDialog";
+
+const ClienteDashboard = () => {
+  const { profile, loading: profileLoading } = useUserRole();
+  const empresaId = profile?.empresa_id;
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  // Estados
+  const [isEnvioDialogOpen, setIsEnvioDialogOpen] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [pendenciaDialog, setPendenciaDialog] = useState<{
+    open: boolean;
+    loteId: string;
+    obraNome: string;
+  }>({ open: false, loteId: "", obraNome: "" });
+  const [loteDetalhes, setLoteDetalhes] = useState<any>(null);
+  const [isDetalhesDialogOpen, setIsDetalhesDialogOpen] = useState(false);
+
+  // Competência atual (mês/ano)
+  const now = new Date();
+  const currentDay = now.getDate();
+  const competenciaAtual = format(now, "MMMM/yyyy", { locale: ptBR });
+  const competenciaAtualCapitalized = competenciaAtual.charAt(0).toUpperCase() + competenciaAtual.slice(1);
+  const isJanelaAberta = currentDay <= 20;
+
+  // Buscar dados da empresa
+  const { data: empresa } = useQuery({
+    queryKey: ["empresa", empresaId],
+    queryFn: async () => {
+      if (!empresaId) return null;
+      const { data, error } = await supabase
+        .from("empresas")
+        .select("nome")
+        .eq("id", empresaId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!empresaId,
+  });
+
+  // Buscar lote do mês atual (pode ter múltiplos por obra)
+  const { data: lotesAtuais, isLoading: loteLoading } = useQuery({
+    queryKey: ["lotes-atuais", empresaId, competenciaAtualCapitalized],
+    queryFn: async () => {
+      if (!empresaId) return [];
+      const { data, error } = await supabase
+        .from("lotes_mensais")
+        .select("*, obras(nome)")
+        .eq("empresa_id", empresaId)
+        .eq("competencia", competenciaAtualCapitalized)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!empresaId,
+  });
+
+  // Buscar histórico (últimos 5 lotes)
+  const { data: historico, isLoading: historicoLoading } = useQuery({
+    queryKey: ["historico-lotes", empresaId],
+    queryFn: async () => {
+      if (!empresaId) return [];
+      const { data, error } = await supabase
+        .from("lotes_mensais")
+        .select("*, obras(nome)")
+        .eq("empresa_id", empresaId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!empresaId,
+  });
+
+  // Buscar total de colaboradores ativos
+  const { data: totalColaboradores } = useQuery({
+    queryKey: ["total-colaboradores", empresaId],
+    queryFn: async () => {
+      if (!empresaId) return 0;
+      const { count, error } = await supabase
+        .from("colaboradores")
+        .select("*", { count: "exact", head: true })
+        .eq("empresa_id", empresaId)
+        .eq("status", "ativo");
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!empresaId,
+  });
+
+  // Buscar todas as obras da empresa com contagem de colaboradores
+  const { data: obras } = useQuery({
+    queryKey: ["obras-empresa-com-colaboradores", empresaId],
+    queryFn: async () => {
+      if (!empresaId) return [];
+      
+      // Buscar obras ativas
+      const { data: obrasData, error: obrasError } = await supabase
+        .from("obras")
+        .select("id, nome, status")
+        .eq("empresa_id", empresaId)
+        .eq("status", "ativa")
+        .order("nome");
+      if (obrasError) throw obrasError;
+      
+      // Para cada obra, contar colaboradores ativos
+      const obrasComColaboradores = await Promise.all(
+        (obrasData || []).map(async (obra) => {
+          const { count, error } = await supabase
+            .from("colaboradores")
+            .select("*", { count: "exact", head: true })
+            .eq("empresa_id", empresaId)
+            .eq("obra_id", obra.id)
+            .eq("status", "ativo");
+          
+          return {
+            ...obra,
+            totalColaboradores: count || 0
+          };
+        })
+      );
+      
+      return obrasComColaboradores;
+    },
+    enabled: !!empresaId,
+  });
+
+  // Buscar última nota fiscal
+  const { data: ultimaFatura } = useQuery({
+    queryKey: ["ultima-fatura", empresaId],
+    queryFn: async () => {
+      if (!empresaId) return null;
+      const { data, error } = await supabase
+        .from("notas_fiscais")
+        .select("*")
+        .eq("empresa_id", empresaId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!empresaId,
+  });
+
+  // Realtime subscription para lotes_mensais
+  useEffect(() => {
+    if (!empresaId) return;
+
+    const channel = supabase
+      .channel('lotes-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lotes_mensais',
+          filter: `empresa_id=eq.${empresaId}`
+        },
+        (payload) => {
+          console.log('Lote atualizado em realtime:', payload);
+          queryClient.invalidateQueries({ queryKey: ["lotes-atuais"] });
+          queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [empresaId, queryClient]);
+
+  // Verificar lote em andamento (não rascunho)
+  const loteEmAndamento = lotesAtuais?.find(
+    l => l.status !== "rascunho"
+  );
+
+  // Lote principal para exibição de status
+  const loteAtual = loteEmAndamento || lotesAtuais?.[0];
+
+  // Mapear obras com seus lotes do mês atual e colaboradores
+  const obrasComStatus = obras?.map(obra => {
+    const lote = lotesAtuais?.find(l => l.obra_id === obra.id);
+    const jaEnviado = lote && lote.status !== "rascunho";
+    // Pendência agora é identificada por status concluido + total_reprovados > 0
+    const temPendencia = lote?.status === "concluido" && (lote?.total_reprovados || 0) > 0;
+    
+    return {
+      ...obra,
+      lote,
+      totalVidas: obra.totalColaboradores || 0,
+      status: lote?.status || null,
+      temLista: (obra.totalColaboradores || 0) > 0,
+      jaEnviado,
+      temPendencia
+    };
+  }) || [];
+
+  // Verificar obras sem lista importada
+  const obrasSemLista = obrasComStatus.filter(o => !o.temLista);
+
+  // Handler para abrir dialog de envio
+  const handleEnviarLista = () => {
+    setIsEnvioDialogOpen(true);
+  };
+
+  // Handler para selecionar obra e enviar
+  const handleSelecionarObra = async (obra: any) => {
+    setEnviando(true);
+    
+    try {
+      // 1. Criar ou buscar lote para esta competência/obra
+      let loteId = obra.lote?.id;
+      
+      if (!loteId) {
+        const { data: novoLote, error: loteError } = await supabase
+          .from("lotes_mensais")
+          .insert({
+            empresa_id: empresaId,
+            obra_id: obra.id,
+            competencia: competenciaAtualCapitalized,
+            status: "rascunho",
+            total_colaboradores: obra.totalVidas
+          })
+          .select()
+          .single();
+        
+        if (loteError) throw loteError;
+        loteId = novoLote.id;
+      }
+      
+      // 2. Buscar colaboradores ativos desta obra
+      const { data: colaboradores, error: colabError } = await supabase
+        .from("colaboradores")
+        .select("*")
+        .eq("empresa_id", empresaId)
+        .eq("obra_id", obra.id)
+        .eq("status", "ativo");
+      
+      if (colabError) throw colabError;
+      
+      // 3. Criar snapshots em colaboradores_lote (se ainda não existirem)
+      if (colaboradores && colaboradores.length > 0) {
+        // Deletar snapshots antigos do mesmo lote (caso esteja re-enviando)
+        await supabase
+          .from("colaboradores_lote")
+          .delete()
+          .eq("lote_id", loteId);
+        
+        // Criar novos snapshots
+        const snapshots = colaboradores.map(c => ({
+          lote_id: loteId,
+          colaborador_id: c.id,
+          nome: c.nome,
+          cpf: c.cpf,
+          data_nascimento: c.data_nascimento,
+          sexo: c.sexo,
+          salario: c.salario || 0,
+          classificacao: c.classificacao,
+          classificacao_salario: c.classificacao_salario,
+          aposentado: c.aposentado || false,
+          afastado: c.afastado || false,
+          cid: c.cid,
+          status_seguradora: "pendente",
+          tipo_alteracao: "mantido"
+        }));
+        
+        const { error: snapshotError } = await supabase
+          .from("colaboradores_lote")
+          .insert(snapshots);
+        
+        if (snapshotError) throw snapshotError;
+      }
+      
+      // 4. Atualizar status do lote para aguardando_processamento
+      const { error: updateError } = await supabase
+        .from("lotes_mensais")
+        .update({ 
+          status: "aguardando_processamento",
+          total_colaboradores: colaboradores?.length || 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", loteId);
+
+      if (updateError) throw updateError;
+
+      // Atualizar dados ANTES de mostrar sucesso
+      await queryClient.invalidateQueries({ queryKey: ["lotes-atuais"] });
+      await queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
+      await queryClient.invalidateQueries({ queryKey: ["obras-empresa-com-colaboradores"] });
+      
+      toast.success(`Lista de ${obra.nome} enviada para processamento!`);
+      setIsEnvioDialogOpen(false);
+    } catch (error: any) {
+      console.error("Erro ao enviar lista:", error);
+      toast.error(error?.message || "Erro ao enviar lista. Tente novamente.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const getStatusBadge = (status: string, totalReprovados?: number) => {
+    // Concluído com pendências
+    if (status === "concluido" && (totalReprovados || 0) > 0) {
+      return <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20">Com Pendências</Badge>;
+    }
+    switch (status) {
+      case "concluido":
+        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Concluído</Badge>;
+      case "faturado":
+        return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">Faturado</Badge>;
+      case "aguardando_processamento":
+        return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Aguardando Processamento</Badge>;
+      case "em_analise_seguradora":
+        return <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20">Em Análise</Badge>;
+      case "rascunho":
+        return <Badge className="bg-gray-500/10 text-gray-600 border-gray-500/20">Rascunho</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  const formatCurrency = (value: number | null) => {
+    if (!value) return "R$ 0,00";
+    return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  };
+
+  const getStatusGeral = () => {
+    if (!loteAtual) return "Pendente";
+    if (loteAtual.status === "concluido" || loteAtual.status === "faturado") return "Em dia";
+    if (loteAtual.status === "com_pendencia") return "Pendente";
+    if (loteAtual.status === "rascunho") return "Pendente";
+    return "Em andamento";
+  };
+
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold">Bem-vindo, {empresa?.nome || "Carregando..."}</h1>
+        <p className="text-muted-foreground">Central de ações e acompanhamento</p>
+      </div>
+
+      {/* Card Principal - Status do Mês com TODAS as obras */}
+      {loteLoading ? (
+        <Card className="border-muted">
+          <CardContent className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-primary" />
+                <CardTitle className="text-primary">Lista de {competenciaAtualCapitalized}</CardTitle>
+              </div>
+              <Button 
+                className="gap-2" 
+                onClick={handleEnviarLista}
+              >
+                <Send className="h-4 w-4" />
+                Enviar Lista do Mês
+              </Button>
+            </div>
+            <CardDescription>
+              {isJanelaAberta 
+                ? `Dias restantes: ${20 - currentDay}` 
+                : "Janela encerrada - entre em contato com suporte"
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {obrasComStatus.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhuma obra cadastrada.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {obrasComStatus.map((obra) => {
+                  return (
+                    <div 
+                      key={obra.id}
+                      onClick={() => {
+                        if (obra.temPendencia && obra.lote?.id) {
+                          setPendenciaDialog({
+                            open: true,
+                            loteId: obra.lote.id,
+                            obraNome: obra.nome,
+                          });
+                        }
+                      }}
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                        obra.temPendencia 
+                          ? "border-orange-500/30 bg-orange-500/5 cursor-pointer hover:bg-orange-500/10"
+                          : obra.jaEnviado 
+                            ? "border-blue-500/30 bg-blue-500/5"
+                            : obra.temLista
+                              ? "border-green-500/30 bg-green-500/5"
+                              : "border-orange-500/30 bg-orange-500/5"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Building2 className={`h-5 w-5 ${
+                          obra.temPendencia
+                            ? "text-orange-600"
+                            : obra.jaEnviado 
+                              ? "text-blue-600"
+                              : obra.temLista
+                                ? "text-green-600"
+                                : "text-orange-600"
+                        }`} />
+                        <div>
+                          <p className="font-medium">{obra.nome}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {obra.totalVidas} vidas
+                            {obra.temPendencia && (
+                              <span className="text-orange-600 ml-2">• Clique para ver pendências</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        {obra.jaEnviado ? (
+                          getStatusBadge(obra.status!, obra.lote?.total_reprovados)
+                        ) : obra.temLista ? (
+                          <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                            Pronto para enviar
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20">
+                            Sem lista
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Alerta de Pendências - mostra se alguma obra tem pendência */}
+      {obrasComStatus.some(o => o.temPendencia) && (
+        <Alert className="border-orange-500/30 bg-orange-500/5">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-700">
+            Há obras com pendências a resolver. Verifique os detalhes acima.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Cards de Resumo */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Vidas Ativas</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalColaboradores ?? 0}</div>
+            <p className="text-xs text-muted-foreground">colaboradores cadastrados</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Fatura do Mês</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const lotesFaturados = lotesAtuais?.filter(l => l.status === 'faturado') || [];
+              const valorTotal = lotesFaturados.reduce((acc, l) => acc + (l.valor_total || 0), 0);
+              
+              if (lotesFaturados.length > 0) {
+                return (
+                  <>
+                    <div className="text-2xl font-bold">{formatCurrency(valorTotal)}</div>
+                    <p className="text-xs text-muted-foreground">{competenciaAtualCapitalized}</p>
+                  </>
+                );
+              }
+              return (
+                <>
+                  <div className="text-2xl font-bold text-muted-foreground">R$ 0,00</div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{competenciaAtualCapitalized}</p>
+                    <Badge variant="secondary" className="text-xs">Em fechamento</Badge>
+                  </div>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Status Atual</CardTitle>
+            <CheckCircle2 className={`h-4 w-4 ${getStatusGeral() === "Em dia" ? "text-green-500" : getStatusGeral() === "Pendente" ? "text-yellow-500" : "text-blue-500"}`} />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${getStatusGeral() === "Em dia" ? "text-green-600" : getStatusGeral() === "Pendente" ? "text-yellow-600" : "text-blue-600"}`}>
+              {getStatusGeral()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {getStatusGeral() === "Em dia" ? "sem pendências" : getStatusGeral() === "Pendente" ? "ação necessária" : "em processamento"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Histórico Recente */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Histórico Recente</CardTitle>
+          <CardDescription>Últimos envios realizados</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {historicoLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : historico && historico.length > 0 ? (
+            <div className="space-y-4">
+              {historico.map((item) => (
+                <div 
+                  key={item.id} 
+                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <FileText className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        {item.competencia}
+                        {item.obras?.nome && <span className="text-muted-foreground font-normal"> - {item.obras.nome}</span>}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {item.created_at ? format(new Date(item.created_at), "dd/MM/yyyy") : "-"} • {item.total_colaboradores || 0} vidas
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {getStatusBadge(item.status)}
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setLoteDetalhes(item);
+                        setIsDetalhesDialogOpen(true);
+                      }}
+                    >
+                      Ver detalhes
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhum envio encontrado.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog de Seleção de Obra para Envio */}
+      <Dialog open={isEnvioDialogOpen} onOpenChange={setIsEnvioDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Enviar Lista do Mês
+            </DialogTitle>
+            <DialogDescription>
+              Competência: <span className="font-semibold text-foreground">{competenciaAtualCapitalized}</span>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            {obrasComStatus.length === 0 ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Nenhuma obra cadastrada. Cadastre uma obra em "Minha Equipe" primeiro.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Selecione a obra para enviar a lista de colaboradores:
+                </p>
+                
+                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                  {obrasComStatus.map((obra) => (
+                    <div 
+                      key={obra.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border ${
+                        obra.temLista && !obra.jaEnviado 
+                          ? "border-green-500/30 bg-green-500/5" 
+                          : obra.jaEnviado 
+                            ? "border-blue-500/30 bg-blue-500/5"
+                            : "border-orange-500/30 bg-orange-500/5"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                          obra.temLista && !obra.jaEnviado 
+                            ? "bg-green-500/20" 
+                            : obra.jaEnviado 
+                              ? "bg-blue-500/20"
+                              : "bg-orange-500/20"
+                        }`}>
+                          <Building2 className={`h-5 w-5 ${
+                            obra.temLista && !obra.jaEnviado 
+                              ? "text-green-600" 
+                              : obra.jaEnviado 
+                                ? "text-blue-600"
+                                : "text-orange-600"
+                          }`} />
+                        </div>
+                        <div>
+                          <p className="font-medium">{obra.nome}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {obra.jaEnviado ? (
+                              <span className="text-blue-600">Já enviado</span>
+                            ) : obra.temLista ? (
+                              <span className="text-green-600">{obra.totalVidas} vidas importadas</span>
+                            ) : (
+                              <span className="text-orange-600 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Lista não importada
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        {obra.jaEnviado ? (
+                          getStatusBadge(obra.status!)
+                        ) : obra.temLista ? (
+                          <Button 
+                            size="sm" 
+                            className="gap-1"
+                            onClick={() => handleSelecionarObra(obra)}
+                            disabled={enviando}
+                          >
+                            {enviando ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Send className="h-3 w-3" />
+                            )}
+                            Enviar
+                          </Button>
+                        ) : (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="gap-1 text-orange-600 border-orange-500/50 hover:bg-orange-500/10"
+                            onClick={() => {
+                              setIsEnvioDialogOpen(false);
+                              navigate("/cliente/minha-equipe");
+                            }}
+                          >
+                            <FileSpreadsheet className="h-3 w-3" />
+                            Importar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {obrasSemLista.length > 0 && (
+                  <Alert className="border-orange-500/30 bg-orange-500/5">
+                    <AlertTriangle className="h-4 w-4 text-orange-600" />
+                    <AlertDescription className="text-orange-700">
+                      {obrasSemLista.length === 1 
+                        ? `A obra "${obrasSemLista[0].nome}" ainda não possui lista importada.`
+                        : `${obrasSemLista.length} obras ainda não possuem lista importada.`
+                      }
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEnvioDialogOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Pendências */}
+      <CorrigirPendenciasDialog
+        open={pendenciaDialog.open}
+        onOpenChange={(open) => setPendenciaDialog({ ...pendenciaDialog, open })}
+        loteId={pendenciaDialog.loteId}
+        obraNome={pendenciaDialog.obraNome}
+        competencia={competenciaAtualCapitalized}
+      />
+
+      {/* Dialog de Detalhes do Lote */}
+      <LoteDetalhesDialog
+        open={isDetalhesDialogOpen}
+        onOpenChange={setIsDetalhesDialogOpen}
+        lote={loteDetalhes}
+      />
+    </div>
+  );
+};
+
+export default ClienteDashboard;

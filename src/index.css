@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* VV Benefícios Design System
+   Brand Colors:
+   - Amarelo: #E8B001 (Primary accent)
+   - Branco: #FFFFFF (Light backgrounds)
+   - Cinza: #374552 (Primary text/dark elements)
+   
+   HSL Conversions:
+   - #E8B001 → 45 98% 45%
+   - #374552 → 210 21% 27%
+   - #FFFFFF → 0 0% 100%
+*/
+
+@layer base {
+  :root {
+    /* Light Mode - Clean & Professional */
+    --background: 210 20% 98%;
+    --foreground: 210 21% 27%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 210 21% 27%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 21% 27%;
+    
+    /* Primary: Amarelo VV - usado para destaque e CTAs */
+    --primary: 45 98% 45%;
+    --primary-foreground: 210 21% 20%;
+    
+    /* Secondary: Cinza suave */
+    --secondary: 210 15% 93%;
+    --secondary-foreground: 210 21% 27%;
+    
+    --muted: 210 15% 95%;
+    --muted-foreground: 210 15% 45%;
+    
+    /* Accent: Cinza VV - usado para elementos destacados */
+    --accent: 210 21% 27%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 210 15% 90%;
+    --input: 210 15% 90%;
+    --ring: 45 98% 45%;
+    --radius: 0.625rem;
+    
+    /* Sidebar: Cinza VV profundo */
+    --sidebar-background: 210 21% 27%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 45 98% 45%;
+    --sidebar-primary-foreground: 210 21% 20%;
+    --sidebar-accent: 210 21% 35%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 210 21% 35%;
+    --sidebar-ring: 45 98% 45%;
+    
+    /* Custom VV Colors */
+    --vv-yellow: 45 98% 45%;
+    --vv-gray: 210 21% 27%;
+    --vv-gray-light: 210 15% 45%;
+    --vv-success: 142 71% 45%;
+    --vv-warning: 38 92% 50%;
+    --vv-info: 199 89% 48%;
+  }
+
+  .dark {
+    --background: 210 25% 12%;
+    --foreground: 0 0% 95%;
+    
+    --card: 210 23% 16%;
+    --card-foreground: 0 0% 95%;
+    
+    --popover: 210 23% 16%;
+    --popover-foreground: 0 0% 95%;
+    
+    --primary: 45 98% 50%;
+    --primary-foreground: 210 21% 15%;
+    
+    --secondary: 210 20% 22%;
+    --secondary-foreground: 0 0% 95%;
+    
+    --muted: 210 20% 18%;
+    --muted-foreground: 210 15% 65%;
+    
+    --accent: 45 80% 50%;
+    --accent-foreground: 210 21% 15%;
+    
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 210 20% 25%;
+    --input: 210 20% 25%;
+    --ring: 45 98% 50%;
+    
+    --sidebar-background: 210 25% 15%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 45 98% 50%;
+    --sidebar-primary-foreground: 210 21% 15%;
+    --sidebar-accent: 210 20% 25%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 210 20% 22%;
+    --sidebar-ring: 45 98% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* VV Card styles */
+  .vv-card {
+    @apply bg-card rounded-xl border border-border shadow-sm transition-all duration-200;
+  }
+  
+  .vv-card:hover {
+    @apply shadow-md border-primary/20;
+  }
+  
+  /* VV Button accent */
+  .vv-btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 font-semibold transition-all duration-200;
+  }
+  
+  /* VV Input focus */
+  .vv-input-focus:focus {
+    @apply ring-2 ring-primary/30 border-primary;
+  }
+  
+  /* VV Badge styles */
+  .vv-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  
+  /* Gradient accent */
+  .vv-gradient {
+    background: linear-gradient(135deg, hsl(var(--vv-gray)) 0%, hsl(210 21% 35%) 100%);
+  }
+  
+  .vv-gradient-yellow {
+    background: linear-gradient(135deg, hsl(var(--vv-yellow)) 0%, hsl(40 95% 50%) 100%);
+  }
+}
+
+@layer utilities {
+  /* Custom shadow for elevated elements */
+  .shadow-vv {
+    box-shadow: 0 4px 20px -4px rgba(55, 69, 82, 0.12), 0 2px 8px -2px rgba(55, 69, 82, 0.08);
+  }
+  
+  .shadow-vv-lg {
+    box-shadow: 0 10px 40px -8px rgba(55, 69, 82, 0.18), 0 4px 16px -4px rgba(55, 69, 82, 0.12);
+  }
+  
+  /* Animation utilities */
+  .animate-fade-up {
+    animation: fadeUp 0.5s ease-out forwards;
+  }
+  
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
