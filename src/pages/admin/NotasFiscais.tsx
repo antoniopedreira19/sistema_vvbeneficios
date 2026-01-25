@@ -6,18 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Upload, FileText, ExternalLink, X } from "lucide-react";
+import { Loader2, Upload, FileText, ExternalLink, X, Search } from "lucide-react";
 
 interface NotaFiscal {
   id: string;
   empresa_id: string;
   lote_id: string;
+  obra_id: string | null;
   competencia: string;
   numero_vidas: number;
   valor_total: number;
   nf_emitida: boolean;
   nf_url: string | null;
   empresas: {
+    nome: string;
+  } | null;
+  obras: {
     nome: string;
   } | null;
   lotes_mensais: {
@@ -29,6 +33,7 @@ const NotasFiscais = () => {
   const [notasFiscais, setNotasFiscais] = useState<NotaFiscal[]>([]);
   const [loading, setLoading] = useState(true);
   const [mesFilter, setMesFilter] = useState<string>("todos");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   const fetchNotasFiscais = async () => {
@@ -39,6 +44,7 @@ const NotasFiscais = () => {
         .select(`
           *,
           empresas(nome),
+          obras(nome),
           lotes_mensais(valor_total)
         `)
         .order("competencia", { ascending: false });
@@ -155,9 +161,24 @@ const NotasFiscais = () => {
   }, [notasFiscais]);
 
   const filteredNotasFiscais = useMemo(() => {
-    if (mesFilter === "todos") return notasFiscais;
-    return notasFiscais.filter(nf => nf.competencia === mesFilter);
-  }, [notasFiscais, mesFilter]);
+    let filtered = notasFiscais;
+    
+    // Filtrar por mês
+    if (mesFilter !== "todos") {
+      filtered = filtered.filter(nf => nf.competencia === mesFilter);
+    }
+    
+    // Filtrar por busca (nome da empresa ou obra)
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(nf => 
+        nf.empresas?.nome?.toLowerCase().includes(term) ||
+        nf.obras?.nome?.toLowerCase().includes(term)
+      );
+    }
+    
+    return filtered;
+  }, [notasFiscais, mesFilter, searchTerm]);
 
   if (loading) {
     return (
@@ -180,21 +201,32 @@ const NotasFiscais = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Lista de Notas Fiscais</CardTitle>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Filtrar por mês:</span>
-              <Select value={mesFilter} onValueChange={setMesFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  {competenciasList.map(comp => (
-                    <SelectItem key={comp} value={comp}>
-                      {comp}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por empresa ou obra..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 w-[250px]"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Mês:</span>
+                <Select value={mesFilter} onValueChange={setMesFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {competenciasList.map(comp => (
+                      <SelectItem key={comp} value={comp}>
+                        {comp}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -209,6 +241,7 @@ const NotasFiscais = () => {
                 <TableRow>
                   <TableHead>Competência (Mês)</TableHead>
                   <TableHead>Empresa</TableHead>
+                  <TableHead>Obra</TableHead>
                   <TableHead>N° de Vidas</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>NF Emitida</TableHead>
@@ -224,6 +257,7 @@ const NotasFiscais = () => {
                     <TableRow key={nf.id}>
                       <TableCell>{nf.competencia}</TableCell>
                       <TableCell>{nf.empresas?.nome || "Empresa não encontrada"}</TableCell>
+                      <TableCell>{nf.obras?.nome || "-"}</TableCell>
                       <TableCell>{nf.numero_vidas}</TableCell>
                       <TableCell>
                         {valorTotal.toLocaleString('pt-BR', {
