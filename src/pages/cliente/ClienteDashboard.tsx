@@ -180,7 +180,7 @@ const ClienteDashboard = () => {
     enabled: !!empresaId,
   });
 
-  // Realtime subscription para lotes_mensais
+  // Realtime subscription para lotes_mensais - UPDATE DIRETO NO CACHE
   useEffect(() => {
     if (!empresaId) return;
 
@@ -196,8 +196,46 @@ const ClienteDashboard = () => {
         },
         (payload) => {
           console.log('Lote atualizado em realtime:', payload);
-          queryClient.invalidateQueries({ queryKey: ["lotes-atuais"] });
-          queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
+          const newData = payload.new as any;
+          
+          // Atualizar cache diretamente ao invés de invalidar (evita sobrescrever update otimista)
+          if (payload.eventType === 'UPDATE' && newData) {
+            // Atualizar lotes-atuais
+            queryClient.setQueryData<any[]>(["lotes-atuais", empresaId, competenciaAtualCapitalized], (old) => {
+              if (!old) return old;
+              return old.map(lote => 
+                lote.id === newData.id 
+                  ? { ...lote, ...newData }
+                  : lote
+              );
+            });
+            
+            // Atualizar historico
+            queryClient.setQueryData<any[]>(["historico-lotes", empresaId], (old) => {
+              if (!old) return old;
+              return old.map(lote => 
+                lote.id === newData.id 
+                  ? { ...lote, ...newData }
+                  : lote
+              );
+            });
+          } else if (payload.eventType === 'INSERT' && newData) {
+            // Para novos lotes, adicionar ao cache se for da competência atual
+            if (newData.competencia === competenciaAtualCapitalized) {
+              queryClient.setQueryData<any[]>(["lotes-atuais", empresaId, competenciaAtualCapitalized], (old) => {
+                if (!old) return [newData];
+                // Só adicionar se não existe
+                if (old.some(l => l.id === newData.id)) return old;
+                return [...old, newData];
+              });
+            }
+            // Invalidar histórico para buscar dados completos com joins
+            queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
+          } else if (payload.eventType === 'DELETE') {
+            // Para exclusões, invalidar para refazer query
+            queryClient.invalidateQueries({ queryKey: ["lotes-atuais"] });
+            queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
+          }
         }
       )
       .subscribe();
@@ -205,7 +243,7 @@ const ClienteDashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [empresaId, queryClient]);
+  }, [empresaId, queryClient, competenciaAtualCapitalized]);
 
   // Verificar lote em andamento (não rascunho)
   const loteEmAndamento = lotesAtuais?.find(
