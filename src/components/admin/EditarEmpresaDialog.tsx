@@ -174,7 +174,7 @@ export function EditarEmpresaDialog({
     }
   };
 
-  // --- Lógica de Salvar (Mutation) ---
+  // --- Lógica de Salvar (Mutation com Optimistic Update) ---
   const editarEmpresaMutation = useMutation({
     mutationFn: async () => {
       const cnpjLimpo = cnpj.replace(/\D/g, "");
@@ -199,7 +199,6 @@ export function EditarEmpresaDialog({
           nome,
           cnpj: cnpjLimpo,
           endereco: endereco || null,
-          // Enviando como Array para compatibilidade com o Trigger/N8N
           responsavel_nome: respNomePayload as any,
           responsavel_cpf: respCpfPayload as any,
           email_contato: emailContato,
@@ -212,17 +211,84 @@ export function EditarEmpresaDialog({
         .eq("id", empresa.id);
 
       if (error) throw error;
+      
+      return {
+        nome,
+        cnpj: cnpjLimpo,
+        endereco: endereco || null,
+        responsavel_nome: respNomePayload,
+        responsavel_cpf: respCpfPayload,
+        email_contato: emailContato,
+        telefone_contato: telefoneContato,
+        emails_contato: validEmails,
+        telefones_contato: validTelefones,
+        status,
+        implantada,
+      };
+    },
+    onMutate: async () => {
+      // Cancelar queries pendentes
+      await queryClient.cancelQueries({ queryKey: ["empresas-ativas"] });
+      await queryClient.cancelQueries({ queryKey: ["crm-empresas"] });
+      await queryClient.cancelQueries({ queryKey: ["empresas-inativas"] });
+      
+      // Snapshots anteriores
+      const previousAtivas = queryClient.getQueryData(["empresas-ativas"]);
+      const previousCrm = queryClient.getQueryData(["crm-empresas"]);
+      const previousInativas = queryClient.getQueryData(["empresas-inativas"]);
+      
+      const cnpjLimpo = cnpj.replace(/\D/g, "");
+      const validResponsaveis = responsaveis.filter(r => r.nome.trim() !== "" || r.cpf.trim() !== "");
+      const respNomePayload = validResponsaveis.length > 0 
+        ? validResponsaveis.map(r => r.nome.trim()).filter(n => n !== "")
+        : null;
+      
+      const optimisticUpdate = {
+        nome,
+        cnpj: cnpjLimpo,
+        endereco: endereco || null,
+        nome_responsavel: respNomePayload?.[0] || null,
+        responsavel_nome: respNomePayload,
+        email_contato: emailContato,
+        telefone_contato: telefoneContato,
+        status,
+        implantada,
+      };
+      
+      // Update otimista em todas as listas
+      const updateList = (old: any[] | undefined) => 
+        old?.map((e: any) => e.id === empresa.id ? { ...e, ...optimisticUpdate } : e) || [];
+      
+      queryClient.setQueryData(["empresas-ativas"], updateList);
+      queryClient.setQueryData(["crm-empresas"], updateList);
+      queryClient.setQueryData(["empresas-inativas"], updateList);
+      
+      return { previousAtivas, previousCrm, previousInativas };
     },
     onSuccess: () => {
       toast.success("Empresa atualizada com sucesso!");
-      queryClient.invalidateQueries({ queryKey: ["admin-empresas"] });
-      queryClient.invalidateQueries({ queryKey: ["crm-empresas"] });
-      queryClient.invalidateQueries({ queryKey: ["empresas-ativas"] });
       if (onSuccess) onSuccess();
       onOpenChange(false);
     },
-    onError: (error: any) => {
+    onError: (error: any, variables, context) => {
+      // Reverter para estado anterior
+      if (context?.previousAtivas) {
+        queryClient.setQueryData(["empresas-ativas"], context.previousAtivas);
+      }
+      if (context?.previousCrm) {
+        queryClient.setQueryData(["crm-empresas"], context.previousCrm);
+      }
+      if (context?.previousInativas) {
+        queryClient.setQueryData(["empresas-inativas"], context.previousInativas);
+      }
       toast.error(error.message || "Erro ao atualizar empresa");
+    },
+    onSettled: () => {
+      // Sincronizar com o servidor
+      queryClient.invalidateQueries({ queryKey: ["admin-empresas"] });
+      queryClient.invalidateQueries({ queryKey: ["crm-empresas"] });
+      queryClient.invalidateQueries({ queryKey: ["empresas-ativas"] });
+      queryClient.invalidateQueries({ queryKey: ["empresas-inativas"] });
     },
   });
 
