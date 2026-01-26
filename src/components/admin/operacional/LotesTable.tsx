@@ -8,7 +8,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Loader2, Send, FileCheck, AlertTriangle, CreditCard, FileDown, Pencil } from "lucide-react";
+import { Loader2, Send, FileCheck, AlertTriangle, CreditCard, FileDown, Pencil, Check, X } from "lucide-react";
 
 export interface LoteOperacional {
   id: string;
@@ -30,10 +30,12 @@ interface LotesTableProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
-  actionType: "enviar" | "processar" | "pendencia" | "faturar" | "enviar_cliente";
+  actionType: "enviar" | "processar" | "pendencia" | "faturar" | "enviar_cliente" | "resolver_pendencia";
   onAction: (lote: LoteOperacional) => void;
   onDownload?: (lote: LoteOperacional) => void;
   onEdit?: (lote: LoteOperacional) => void;
+  onResolve?: (lote: LoteOperacional) => void;
+  onReject?: (lote: LoteOperacional) => void;
   actionLoading?: string | null;
 }
 
@@ -47,6 +49,8 @@ export function LotesTable({
   onAction,
   onDownload,
   onEdit,
+  onResolve,
+  onReject,
   actionLoading,
 }: LotesTableProps) {
   const getActionButton = (lote: LoteOperacional) => {
@@ -101,6 +105,32 @@ export function LotesTable({
             {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4 mr-1" />}
             Faturar
           </Button>
+        );
+        break;
+      case "resolver_pendencia":
+        MainButton = (
+          <div className="flex items-center gap-2">
+            <Button 
+              size="icon" 
+              variant="outline"
+              className="h-8 w-8 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
+              onClick={() => onResolve?.(lote)} 
+              disabled={isActionLoading}
+              title="Resolvido - Incrementar vidas no lote original"
+            >
+              {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            </Button>
+            <Button 
+              size="icon" 
+              variant="outline"
+              className="h-8 w-8 border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+              onClick={() => onReject?.(lote)} 
+              disabled={isActionLoading}
+              title="Não resolvido - Excluir lote pendente"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         );
         break;
     }
@@ -158,7 +188,7 @@ export function LotesTable({
               <TableHead>Obra</TableHead>
               <TableHead>Competência</TableHead>
               <TableHead className="text-center">Vidas</TableHead>
-              {actionType === "enviar_cliente" && (
+              {(actionType === "enviar_cliente" || actionType === "resolver_pendencia") && (
                 <TableHead className="text-center">Reprovados</TableHead>
               )}
               <TableHead className="text-center">Status</TableHead>
@@ -176,7 +206,7 @@ export function LotesTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="text-center">{lote.total_colaboradores || 0}</TableCell>
-                {actionType === "enviar_cliente" && (
+                {(actionType === "enviar_cliente" || actionType === "resolver_pendencia") && (
                   <TableCell className="text-center">
                     <Badge variant="destructive">{lote.total_reprovados || 0}</Badge>
                   </TableCell>
