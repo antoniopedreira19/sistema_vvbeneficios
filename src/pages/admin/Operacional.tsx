@@ -87,6 +87,8 @@ export default function Operacional() {
 
   const [confirmEnviarDialog, setConfirmEnviarDialog] = useState(false);
   const [confirmFaturarDialog, setConfirmFaturarDialog] = useState(false);
+  const [confirmResolverDialog, setConfirmResolverDialog] = useState(false);
+  const [confirmRejeitarDialog, setConfirmRejeitarDialog] = useState(false);
   const [processarDialogOpen, setProcessarDialogOpen] = useState(false);
   const [importarDialogOpen, setImportarDialogOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -292,6 +294,90 @@ export default function Operacional() {
     },
   });
 
+  // --- MUTAÇÃO DE RESOLVER PENDÊNCIA ---
+  const resolverPendenciaMutation = useMutation({
+    mutationFn: async (lote: LoteOperacional) => {
+      setActionLoading(lote.id);
+
+      // 1. Buscar lote destino (mesma empresa, obra, competência)
+      let query = supabase
+        .from("lotes_mensais")
+        .select("id, total_colaboradores")
+        .eq("empresa_id", lote.empresa_id)
+        .eq("competencia", lote.competencia)
+        .in("status", ["concluido", "faturado"])
+        .neq("id", lote.id);
+
+      // Tratar obra_id null vs valor
+      if (lote.obra?.id) {
+        query = query.eq("obra_id", lote.obra.id);
+      } else {
+        query = query.is("obra_id", null);
+      }
+
+      const { data: loteDestino, error: fetchError } = await query.maybeSingle();
+
+      if (fetchError) throw fetchError;
+      if (!loteDestino) {
+        throw new Error("Nenhum lote encontrado para mesclar. Verifique se existe um lote concluído ou faturado da mesma empresa, obra e competência.");
+      }
+
+      // 2. Incrementar vidas no lote destino
+      const novoTotal = (loteDestino.total_colaboradores || 0) + (lote.total_reprovados || 0);
+      const { error: updateError } = await supabase
+        .from("lotes_mensais")
+        .update({ total_colaboradores: novoTotal })
+        .eq("id", loteDestino.id);
+
+      if (updateError) throw updateError;
+
+      // 3. Excluir o lote pendente
+      const { error: deleteError } = await supabase
+        .from("lotes_mensais")
+        .delete()
+        .eq("id", lote.id);
+
+      if (deleteError) throw deleteError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
+      toast.success("Pendência resolvida! Vidas incrementadas no lote original.");
+      setConfirmResolverDialog(false);
+      setActionLoading(null);
+      setSelectedLote(null);
+    },
+    onError: (e: any) => {
+      toast.error(e.message);
+      setActionLoading(null);
+    },
+  });
+
+  // --- MUTAÇÃO DE REJEITAR PENDÊNCIA ---
+  const rejeitarPendenciaMutation = useMutation({
+    mutationFn: async (lote: LoteOperacional) => {
+      setActionLoading(lote.id);
+
+      // Excluir o lote pendente diretamente
+      const { error } = await supabase
+        .from("lotes_mensais")
+        .delete()
+        .eq("id", lote.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
+      toast.success("Lote pendente excluído.");
+      setConfirmRejeitarDialog(false);
+      setActionLoading(null);
+      setSelectedLote(null);
+    },
+    onError: (e: any) => {
+      toast.error("Erro: " + e.message);
+      setActionLoading(null);
+    },
+  });
+
   // --- DOWNLOAD ---
   const handleDownloadLote = async (lote: LoteOperacional) => {
     try {
@@ -399,6 +485,16 @@ export default function Operacional() {
     else if (tab === "pendencia") {
       toast.success("Email de pendência enviado ao cliente (ação futura).");
     }
+  };
+
+  const handleResolve = (lote: LoteOperacional) => {
+    setSelectedLote(lote);
+    setConfirmResolverDialog(true);
+  };
+
+  const handleReject = (lote: LoteOperacional) => {
+    setSelectedLote(lote);
+    setConfirmRejeitarDialog(true);
   };
 
   const handleConfirmarEnvio = () => {
@@ -528,20 +624,24 @@ export default function Operacional() {
           handleDownloadLote,
           setLoteParaEditar,
         )}
-        {renderTabContent(
-          "pendencia",
-          "Lotes com Pendências (Reprovados)",
-          <AlertTriangle className="text-red-500" />,
-          getPaginatedLotes,
-          pages,
-          setPages,
-          handleAction,
-          actionLoading,
-          "enviar_cliente",
-          getTotalPages,
-          handleDownloadLote,
-          setLoteParaEditar,
-        )}
+        <TabsContent value="pendencia" className="mt-6">
+          <TabCard title="Lotes com Pendências (Reprovados)" icon={AlertTriangle} color="text-red-500">
+            <LotesTable
+              lotes={getPaginatedLotes("pendencia")}
+              isLoading={false}
+              currentPage={pages.pendencia}
+              totalPages={getTotalPages("pendencia")}
+              onPageChange={(p: number) => setPages((prev: any) => ({ ...prev, pendencia: p }))}
+              actionType="resolver_pendencia"
+              onAction={(l: any) => handleAction(l, "pendencia")}
+              actionLoading={actionLoading}
+              onDownload={handleDownloadLote}
+              onEdit={setLoteParaEditar}
+              onResolve={handleResolve}
+              onReject={handleReject}
+            />
+          </TabCard>
+        </TabsContent>
         {renderTabContent(
           "concluido",
           "Prontos para Faturamento",
@@ -585,6 +685,52 @@ export default function Operacional() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => selectedLote && faturarMutation.mutate(selectedLote)}>
               Liberar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmResolverDialog} onOpenChange={setConfirmResolverDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resolver Pendência?</AlertDialogTitle>
+            <AlertDialogDescription>
+              As <strong>{selectedLote?.total_reprovados || 0} vidas</strong> pendentes serão adicionadas ao lote original
+              da empresa <strong>{selectedLote?.empresa?.nome}</strong> ({selectedLote?.competencia}).
+              <br /><br />
+              O lote pendente será excluído após a operação.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => selectedLote && resolverPendenciaMutation.mutate(selectedLote)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Confirmar Resolução
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRejeitarDialog} onOpenChange={setConfirmRejeitarDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Lote Pendente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O lote pendente da empresa <strong>{selectedLote?.empresa?.nome}</strong> ({selectedLote?.competencia})
+              será excluído permanentemente.
+              <br /><br />
+              As <strong>{selectedLote?.total_reprovados || 0} vidas</strong> não serão adicionadas a nenhum lote.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => selectedLote && rejeitarPendenciaMutation.mutate(selectedLote)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Excluir Lote
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
