@@ -322,10 +322,14 @@ export default function Operacional() {
         throw new Error("Nenhum lote encontrado para mesclar. Verifique se existe um lote concluído ou faturado da mesma empresa, obra e competência.");
       }
 
-      // 2. Migrar colaboradores_lote do lote pendente para o lote destino
+      // 2. Migrar colaboradores_lote do lote pendente para o lote destino E marcar como aprovados
       const { error: migrateError } = await supabase
         .from("colaboradores_lote")
-        .update({ lote_id: loteDestino.id })
+        .update({ 
+          lote_id: loteDestino.id,
+          status_seguradora: "aprovado",  // Ao resolver, o colaborador é aprovado
+          motivo_reprovacao_seguradora: null  // Limpa o motivo de reprovação
+        })
         .eq("lote_id", lote.id);
 
       if (migrateError) throw migrateError;
