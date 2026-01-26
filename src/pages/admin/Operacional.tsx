@@ -47,22 +47,6 @@ const ITEMS_PER_PAGE = 10;
 type TabType = "entrada" | "seguradora" | "pendencia" | "concluido";
 type SortType = "alfabetica" | "recente";
 
-// Gerar competências para o filtro
-const gerarCompetencias = (): string[] => {
-  const competencias: string[] = [];
-  const hoje = new Date();
-  
-  for (let i = -12; i <= 6; i++) {
-    const data = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
-    const mes = data.toLocaleString("pt-BR", { month: "long" });
-    const mesCapitalizado = mes.charAt(0).toUpperCase() + mes.slice(1);
-    const ano = data.getFullYear(); // Ano completo (2025, 2026)
-    competencias.push(`${mesCapitalizado}/${ano}`);
-  }
-  
-  return competencias;
-};
-
 export default function Operacional() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>("entrada");
@@ -71,8 +55,6 @@ export default function Operacional() {
   const [searchTerm, setSearchTerm] = useState("");
   const [competenciaFilter, setCompetenciaFilter] = useState<string>("todas");
   const [sortBy, setSortBy] = useState<SortType>("alfabetica");
-
-  const competencias = gerarCompetencias();
 
   const [pages, setPages] = useState<Record<TabType, number>>({
     entrada: 1,
@@ -118,6 +100,20 @@ export default function Operacional() {
       if (error) throw error;
       return data as unknown as LoteOperacional[];
     },
+  });
+
+  // Extrair competências únicas dos lotes existentes
+  const competencias = [...new Set(lotes.map((l) => l.competencia))].sort((a, b) => {
+    // Ordenar por data (mais recente primeiro)
+    const parseCompetencia = (comp: string) => {
+      const meses: Record<string, number> = {
+        "Janeiro": 0, "Fevereiro": 1, "Março": 2, "Abril": 3, "Maio": 4, "Junho": 5,
+        "Julho": 6, "Agosto": 7, "Setembro": 8, "Outubro": 9, "Novembro": 10, "Dezembro": 11
+      };
+      const [mes, ano] = comp.split("/");
+      return new Date(parseInt(ano), meses[mes] || 0, 1);
+    };
+    return parseCompetencia(b).getTime() - parseCompetencia(a).getTime();
   });
 
   // --- Lógica de Filtragem e Ordenação Dinâmica ---
