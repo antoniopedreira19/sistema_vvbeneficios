@@ -39,6 +39,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { NovoUsuarioDialog } from "@/components/admin/NovoUsuarioDialog";
 import { EditarUsuarioDialog } from "@/components/admin/EditarUsuarioDialog";
+import { CriarUsuariosMassaDialog } from "@/components/admin/CriarUsuariosMassaDialog";
 
 interface Usuario {
   id: string;
@@ -64,6 +65,7 @@ const Configuracoes = () => {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [usuarioToDelete, setUsuarioToDelete] = useState<Usuario | null>(null);
   const [usuarioToEdit, setUsuarioToEdit] = useState<Usuario | null>(null);
+  const [criarUsuariosOpen, setCriarUsuariosOpen] = useState(false);
 
   // Fetch users with roles and companies
   const { data: usuarios = [], isLoading } = useQuery({
@@ -157,9 +159,15 @@ const Configuracoes = () => {
                   <Users className="h-5 w-5 text-primary" />
                   Gestão de Usuários ({usuarios.length})
                 </CardTitle>
-                <NovoUsuarioDialog
-                  onSuccess={() => queryClient.invalidateQueries({ queryKey: ["usuarios"] })}
-                />
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => setCriarUsuariosOpen(true)}>
+                    <Users className="mr-2 h-4 w-4" />
+                    Criar Usuários em Massa
+                  </Button>
+                  <NovoUsuarioDialog
+                    onSuccess={() => queryClient.invalidateQueries({ queryKey: ["usuarios"] })}
+                  />
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -316,6 +324,17 @@ const Configuracoes = () => {
           queryClient.invalidateQueries({ queryKey: ["usuarios"] });
           setUsuarioToEdit(null);
         }}
+      />
+
+      {/* Dialog Criar Usuários em Massa */}
+      <CriarUsuariosMassaDialog 
+        open={criarUsuariosOpen} 
+        onOpenChange={(open) => {
+          setCriarUsuariosOpen(open);
+          if (!open) {
+            queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+          }
+        }} 
       />
     </div>
   );

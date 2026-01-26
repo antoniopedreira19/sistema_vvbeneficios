@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Building2, List, KanbanSquare, Plus, ArchiveX, Download, Users } from "lucide-react";
+import { Building2, List, KanbanSquare, Plus, ArchiveX, Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NovaEmpresaDialog } from "@/components/admin/NovaEmpresaDialog";
-import { CriarUsuariosMassaDialog } from "@/components/admin/CriarUsuariosMassaDialog";
 import { CRMList } from "@/components/crm/CRMList";
 import { CRMKanban } from "@/components/crm/CRMKanban";
 import { CRMInactiveList } from "@/components/crm/CRMInactiveList";
@@ -14,7 +13,6 @@ import { formatCPF } from "@/lib/validators";
 
 export default function AdminEmpresas() {
   const [isNovaEmpresaOpen, setIsNovaEmpresaOpen] = useState(false);
-  const [isCriarUsuariosOpen, setIsCriarUsuariosOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleBaixarVidas = async () => {
@@ -119,10 +117,6 @@ export default function AdminEmpresas() {
             <Download className="mr-2 h-4 w-4" />
             Baixar Vidas
           </Button>
-          <Button variant="outline" onClick={() => setIsCriarUsuariosOpen(true)}>
-            <Users className="mr-2 h-4 w-4" />
-            Criar Usuários em Massa
-          </Button>
           <Button onClick={() => setIsNovaEmpresaOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Nova Empresa
@@ -168,7 +162,6 @@ export default function AdminEmpresas() {
       </Tabs>
 
       <NovaEmpresaDialog open={isNovaEmpresaOpen} onOpenChange={setIsNovaEmpresaOpen} />
-      <CriarUsuariosMassaDialog open={isCriarUsuariosOpen} onOpenChange={setIsCriarUsuariosOpen} />
     </div>
   );
 }
