@@ -111,6 +111,17 @@ export function LotesTable({
         MainButton = (
           <div className="flex items-center gap-2">
             <Button 
+              size="sm" 
+              variant="outline"
+              className="border-orange-500 text-orange-600 hover:bg-orange-50"
+              onClick={() => onAction(lote)} 
+              disabled={isActionLoading}
+              title="Enviar pendência para o cliente"
+            >
+              <Send className="h-4 w-4 mr-1" />
+              Enviar
+            </Button>
+            <Button 
               size="icon" 
               variant="outline"
               className="h-8 w-8 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
