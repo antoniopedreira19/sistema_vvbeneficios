@@ -479,6 +479,8 @@ const ClienteDashboard = () => {
         return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Aguardando Processamento</Badge>;
       case "em_analise_seguradora":
         return <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20">Em Análise</Badge>;
+      case "com_pendencia":
+        return <Badge className="bg-red-500/10 text-red-600 border-red-500/20">Com Pendência</Badge>;
       case "rascunho":
         return <Badge className="bg-gray-500/10 text-gray-600 border-gray-500/20">Rascunho</Badge>;
       default:
