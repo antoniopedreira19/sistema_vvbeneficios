@@ -322,7 +322,15 @@ export default function Operacional() {
         throw new Error("Nenhum lote encontrado para mesclar. Verifique se existe um lote concluído ou faturado da mesma empresa, obra e competência.");
       }
 
-      // 2. Incrementar vidas no lote destino
+      // 2. Migrar colaboradores_lote do lote pendente para o lote destino
+      const { error: migrateError } = await supabase
+        .from("colaboradores_lote")
+        .update({ lote_id: loteDestino.id })
+        .eq("lote_id", lote.id);
+
+      if (migrateError) throw migrateError;
+
+      // 3. Incrementar vidas no lote destino
       const novoTotal = (loteDestino.total_colaboradores || 0) + (lote.total_reprovados || 0);
       const { error: updateError } = await supabase
         .from("lotes_mensais")
@@ -331,7 +339,7 @@ export default function Operacional() {
 
       if (updateError) throw updateError;
 
-      // 3. Excluir o lote pendente
+      // 4. Excluir o lote pendente (agora sem colaboradores)
       const { error: deleteError } = await supabase
         .from("lotes_mensais")
         .delete()
