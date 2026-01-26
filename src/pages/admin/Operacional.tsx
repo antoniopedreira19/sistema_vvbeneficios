@@ -386,7 +386,53 @@ export default function Operacional() {
     },
   });
 
-  // --- DOWNLOAD ---
+  // --- MUTAÇÃO DE ENVIAR PENDÊNCIA PARA CLIENTE ---
+  const enviarPendenciaClienteMutation = useMutation({
+    mutationFn: async (lote: LoteOperacional) => {
+      setActionLoading(lote.id);
+
+      // Buscar dados dos colaboradores reprovados
+      const { data: reprovados, error: fetchError } = await supabase
+        .from("colaboradores_lote")
+        .select("nome, cpf, motivo_reprovacao_seguradora")
+        .eq("lote_id", lote.id)
+        .eq("status_seguradora", "reprovado");
+
+      if (fetchError) throw fetchError;
+
+      // Criar notificação que dispara o webhook
+      const { error: notifError } = await supabase.rpc("criar_notificacao", {
+        p_tipo: "admin_gerencia_aprovacoes",
+        p_empresa_id: lote.empresa_id,
+        p_lote_id: lote.id,
+        p_destinatario_role: "cliente",
+        p_obra_id: lote.obra?.id || null,
+        p_dados: {
+          competencia: lote.competencia,
+          total_aprovados: (lote.total_colaboradores || 0) - (lote.total_reprovados || 0),
+          total_reprovados: lote.total_reprovados || 0,
+          reprovados: reprovados?.map(r => ({
+            nome: r.nome,
+            cpf: r.cpf,
+            motivo: r.motivo_reprovacao_seguradora
+          })) || [],
+          nome_obra: lote.obra?.nome || "Sem obra especificada"
+        }
+      });
+
+      if (notifError) throw notifError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
+      toast.success("Notificação de pendência enviada ao cliente!");
+      setActionLoading(null);
+      setSelectedLote(null);
+    },
+    onError: (e: any) => {
+      toast.error("Erro ao enviar notificação: " + e.message);
+      setActionLoading(null);
+    },
+  });
   const handleDownloadLote = async (lote: LoteOperacional) => {
     try {
       toast.info("Preparando download...");
@@ -491,7 +537,8 @@ export default function Operacional() {
     else if (tab === "seguradora") setProcessarDialogOpen(true);
     else if (tab === "concluido") setConfirmFaturarDialog(true);
     else if (tab === "pendencia") {
-      toast.success("Email de pendência enviado ao cliente (ação futura).");
+      // Enviar notificação de pendência para o cliente via webhook
+      enviarPendenciaClienteMutation.mutate(lote);
     }
   };
 
