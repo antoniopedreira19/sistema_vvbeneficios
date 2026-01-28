@@ -66,6 +66,7 @@ const EmpresaDetailDialog = ({
   const [loadingCompetencias, setLoadingCompetencias] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deletingAdendoId, setDeletingAdendoId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Lotes disponíveis para gerar adendo (concluídos ou faturados)
@@ -174,6 +175,38 @@ const EmpresaDetailDialog = ({
   const handleAdendoGerado = () => {
     // Recarregar competências para mostrar o novo adendo
     fetchCompetencias();
+  };
+
+  const handleDeleteAdendo = async (lote: LoteCompetencia) => {
+    if (!lote.adendo_url) return;
+    if (!confirm(`Tem certeza que deseja excluir o adendo de ${lote.competencia}?`)) return;
+
+    setDeletingAdendoId(lote.id);
+    try {
+      // Extrair o path do arquivo no storage
+      if (lote.adendo_url.includes("supabase.co/storage")) {
+        const path = lote.adendo_url.split("/contratos/").pop();
+        if (path) {
+          await supabase.storage.from("contratos").remove([decodeURIComponent(path)]);
+        }
+      }
+
+      // Limpar a URL do adendo no banco
+      const { error } = await supabase
+        .from("lotes_mensais")
+        .update({ adendo_url: null })
+        .eq("id", lote.id);
+
+      if (error) throw error;
+
+      toast({ title: "Adendo excluído", description: `Adendo de ${lote.competencia} foi removido.` });
+      fetchCompetencias();
+    } catch (error: any) {
+      console.error("Erro ao excluir adendo:", error);
+      toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+    } finally {
+      setDeletingAdendoId(null);
+    }
   };
 
   const empresaForEdit = {
@@ -406,8 +439,9 @@ const EmpresaDetailDialog = ({
                 </Label>
 
                 {loadingCompetencias ? (
-                  <div className="flex items-center justify-center py-4">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                  <div className="flex items-center justify-center gap-2 py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">Carregando...</span>
                   </div>
                 ) : competencias.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic">Nenhuma competência enviada</p>
@@ -456,6 +490,20 @@ const EmpresaDetailDialog = ({
                               title="Baixar Adendo"
                             >
                               <Download className="h-3.5 w-3.5 text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteAdendo(lote)}
+                              disabled={deletingAdendoId === lote.id}
+                              className="h-6 w-6 p-0 hover:bg-destructive/10"
+                              title="Excluir Adendo"
+                            >
+                              {deletingAdendoId === lote.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-destructive" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              )}
                             </Button>
                           </div>
                         )}
