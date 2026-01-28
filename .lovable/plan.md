@@ -1,135 +1,155 @@
 
-# Plano: Botões de Resolução de Pendências
 
-## Objetivo
-Adicionar funcionalidade para resolver ou descartar lotes com pendências na aba "Pendências" do Operacional admin.
+# Plano: Gerar Adendo por Competência com Armazenamento no Supabase
 
-## Comportamento Esperado
+## Resumo da Funcionalidade
 
-| Ação | Comportamento |
-|------|---------------|
-| ✅ **Resolvido** | Busca outro lote da mesma empresa, obra e competência → Incrementa `total_colaboradores` com os reprovados → Exclui o lote pendente |
-| ❌ **Não Resolvido** | Exclui o lote pendente diretamente |
+A solicitação envolve três mudanças principais:
 
-## Fluxo de Resolução
+1. **Filtro por Competência**: Ao clicar em "Gerar Adendo", adicionar um seletor de competência (baseado nos lotes concluídos/faturados da empresa)
+2. **Gerar PDF e Salvar no Storage**: Em vez de apenas abrir para impressão, converter o HTML para PDF e salvar no Supabase Storage
+3. **Visualizar/Baixar na lista "Competências Enviadas"**: Mostrar botão de download/visualização do adendo salvo para cada competência
 
-```text
-┌─────────────────────────────────────────┐
-│        Lote Com Pendência               │
-│  Empresa: ABC | Obra: X | 01/2026       │
-│  3 reprovados                           │
-├─────────────────────────────────────────┤
-│               [✅]  [❌]                │
-└─────────────────────────────────────────┘
-          │              │
-          ▼              ▼
-   ┌──────────────┐  ┌──────────────┐
-   │  Resolvido   │  │ Não Resolvido│
-   │              │  │              │
-   │ Busca lote   │  │ Exclui lote  │
-   │ mesma        │  │ pendente     │
-   │ empresa/obra │  │              │
-   │ competência  │  │              │
-   │              │  └──────────────┘
-   │ Incrementa   │
-   │ vidas no     │
-   │ lote alvo    │
-   │              │
-   │ Exclui lote  │
-   │ pendente     │
-   └──────────────┘
+---
+
+## Fluxo Proposto
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  EmpresaDetailDialog                                                │
+├─────────────────────────────────────────────────────────────────────┤
+│  1. Clique em "Gerar Adendo"                                        │
+│        ↓                                                            │
+│  2. Dialog abre com:                                                │
+│     • Seletor de Competência (lotes concluídos/faturados)           │
+│     • Número da Apólice                                             │
+│     • Datas de Vigência                                             │
+│        ↓                                                            │
+│  3. Clique em "Gerar e Salvar"                                      │
+│        ↓                                                            │
+│  4. Busca colaboradores_lote do lote selecionado (status aprovado)  │
+│        ↓                                                            │
+│  5. Gera HTML → Converte para PDF (via browser print-to-PDF ou      │
+│     biblioteca html2pdf/pdfmake)                                    │
+│        ↓                                                            │
+│  6. Upload do PDF para Supabase Storage (bucket: contratos)         │
+│        ↓                                                            │
+│  7. Salva URL no campo adendo_url da tabela lotes_mensais           │
+│        ↓                                                            │
+│  8. Na lista "Competências Enviadas", exibe ícone de download       │
+│     quando adendo_url estiver preenchido                            │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Implementação
+---
 
-### 1. Modificar LotesTable.tsx
-- Adicionar novo `actionType: "resolver_pendencia"`
-- Criar dois botões lado a lado:
-  - Botão verde com ícone `Check` → chama `onResolve(lote)`
-  - Botão vermelho com ícone `X` → chama `onReject(lote)`
-- Adicionar novas props: `onResolve` e `onReject`
+## Alterações Técnicas
 
-### 2. Modificar Operacional.tsx
-- Criar mutação `resolverPendenciaMutation`:
-  1. Buscar lote destino (mesma empresa_id, obra_id, competencia, status "concluido" ou "faturado")
-  2. Se encontrar: incrementar `total_colaboradores` do lote destino com `total_reprovados` do pendente
-  3. Excluir o lote pendente
-  4. Se não encontrar lote destino: exibir erro informativo
+### 1. Migração de Banco de Dados
 
-- Criar mutação `rejeitarPendenciaMutation`:
-  1. Excluir o lote pendente diretamente
-
-- Criar dialogs de confirmação para ambas as ações
-
-### 3. Lógica de Busca do Lote Destino
+Adicionar coluna `adendo_url` na tabela `lotes_mensais` para armazenar o link do PDF gerado:
 
 ```sql
--- Encontrar lote para mesclar (mesmo contexto)
-SELECT id, total_colaboradores FROM lotes_mensais
-WHERE empresa_id = [empresa_id]
-  AND obra_id = [obra_id]  -- ou IS NULL se obra_id for null
-  AND competencia = [competencia]
-  AND status IN ('concluido', 'faturado')
-  AND id != [lote_pendente_id]
-LIMIT 1
+ALTER TABLE lotes_mensais
+ADD COLUMN adendo_url TEXT;
 ```
 
-## Arquivos a Modificar
+### 2. Modificar `GerarAdendoBtn.tsx`
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/admin/operacional/LotesTable.tsx` | Adicionar botões ✅/❌ e novas props |
-| `src/pages/admin/Operacional.tsx` | Adicionar mutações e handlers para resolver/rejeitar |
+**Mudanças:**
+- Receber lista de competências (lotes concluídos/faturados da empresa)
+- Adicionar `Select` para escolher a competência
+- Ao gerar:
+  - Buscar colaboradores do `colaboradores_lote` com `status_seguradora = 'aprovado'` do lote selecionado
+  - Gerar HTML do documento
+  - Converter para Blob PDF (usando técnica de print-to-PDF ou html2pdf)
+  - Fazer upload para Supabase Storage no bucket `contratos` com path: `adendos/{empresa_id}/{competencia}.pdf`
+  - Atualizar coluna `adendo_url` do lote
+  - Exibir sucesso
 
-## Interface Visual (Pendências)
-
-| Empresa | Obra | Competência | Reprovados | Ações |
-|---------|------|-------------|------------|-------|
-| EMPRESA ABC | OBRA X | Janeiro/2026 | 3 | [✅ verde] [❌ vermelho] |
-
-## Detalhes Técnicos
-
-### Props Adicionadas no LotesTable
+**Nova interface de props:**
 ```typescript
-interface LotesTableProps {
-  // ... props existentes
-  onResolve?: (lote: LoteOperacional) => void;
-  onReject?: (lote: LoteOperacional) => void;
+interface GerarAdendoBtnProps {
+  empresaId: string;
+  lotes: Array<{ id: string; competencia: string; adendo_url?: string }>;
+  variant?: "default" | "outline" | "ghost";
+  onAdendoGerado?: () => void;
 }
 ```
 
-### Mutação de Resolução
+### 3. Modificar `EmpresaDetailDialog.tsx`
+
+**Mudanças:**
+- Buscar lotes com `status IN ('concluido', 'faturado')` para a empresa
+- Passar a lista de lotes para o `GerarAdendoBtn`
+- Na seção "Competências Enviadas":
+  - Exibir ícone de download/visualização quando `adendo_url` existir
+  - Adicionar handler para baixar o PDF
+
+**Atualização da interface `LoteCompetencia`:**
 ```typescript
-const resolverPendenciaMutation = useMutation({
-  mutationFn: async (lote: LoteOperacional) => {
-    // 1. Buscar lote destino
-    const { data: loteDestino } = await supabase
-      .from("lotes_mensais")
-      .select("id, total_colaboradores")
-      .eq("empresa_id", lote.empresa_id)
-      .eq("obra_id", lote.obra?.id || null)
-      .eq("competencia", lote.competencia)
-      .in("status", ["concluido", "faturado"])
-      .neq("id", lote.id)
-      .single();
-    
-    if (!loteDestino) throw new Error("Nenhum lote encontrado para mesclar");
-    
-    // 2. Incrementar vidas
-    await supabase
-      .from("lotes_mensais")
-      .update({ 
-        total_colaboradores: (loteDestino.total_colaboradores || 0) + (lote.total_reprovados || 0)
-      })
-      .eq("id", loteDestino.id);
-    
-    // 3. Excluir lote pendente
-    await supabase.from("lotes_mensais").delete().eq("id", lote.id);
-  }
-});
+interface LoteCompetencia {
+  id: string;           // Adicionar ID do lote
+  competencia: string;
+  status: string;
+  adendo_url?: string;  // Adicionar URL do adendo
+}
 ```
 
-## Observações
-- Será exibido um dialog de confirmação antes de cada ação
-- Se não houver lote destino para mesclar ao resolver, será exibido erro informativo
-- A exclusão do lote pendente também remove os colaboradores_lote associados (se houver cascade)
+### 4. Conversão HTML → PDF
+
+Como a geração atual usa `window.print()`, para salvar como arquivo real temos duas opções:
+
+**Opção A - html2canvas + jsPDF** (mais simples, resultado visual)
+- Usar html2canvas para capturar o HTML renderizado
+- Converter para PDF com jsPDF
+- Instalar: `npm install html2canvas jspdf`
+
+**Opção B - Manter impressão + Upload manual**
+- Manter o fluxo atual de impressão
+- Adicionar botão separado para upload de PDF já salvo pelo usuário
+
+**Recomendação:** Opção A é mais integrada e automática.
+
+---
+
+## Resumo Visual Final
+
+Na seção "Competências Enviadas" do diálogo:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  📅 COMPETÊNCIAS ENVIADAS                                       │
+├─────────────────────────────────────────────────────────────────┤
+│  ✅ Janeiro/2026        [Concluído]     📄 ⬇️                   │
+│  ✅ Dezembro/2025       [Faturado]      📄 ⬇️                   │
+│  ✅ Novembro/2025       [Faturado]      (sem adendo)            │
+└─────────────────────────────────────────────────────────────────┘
+        │                                    ↑
+        │                                    │
+        ↓                                    │
+   Clica em 📄 → abre PDF               Clica em ⬇️ → baixa PDF
+```
+
+---
+
+## Arquivos a Modificar
+
+| Arquivo | Ação |
+|---------|------|
+| `package.json` | Adicionar dependências `html2canvas` e `jspdf` |
+| `src/components/shared/GerarAdendoBtn.tsx` | Refatorar para receber lotes, gerar PDF e upload |
+| `src/components/crm/EmpresaDetailDialog.tsx` | Passar lotes, mostrar ações de download |
+| Migração SQL | Adicionar coluna `adendo_url` em `lotes_mensais` |
+
+---
+
+## Dependências Novas
+
+```json
+{
+  "html2canvas": "^1.4.1",
+  "jspdf": "^2.5.1"
+}
+```
+
