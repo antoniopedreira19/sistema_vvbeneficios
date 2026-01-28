@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { User, Mail, Phone, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { User, Mail, Phone, Search, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { EmpresaCRM, CRM_STATUS_LABELS, CRM_FUNNEL_STATUSES } from "@/types/crm";
 import EmpresaDetailDialog from "./EmpresaDetailDialog";
@@ -83,6 +84,7 @@ export function CRMKanban() {
   const queryClient = useQueryClient();
   const [selectedEmpresa, setSelectedEmpresa] = useState<EmpresaCRM | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isDownloading, setIsDownloading] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [empresaParaContrato, setEmpresaParaContrato] = useState<EmpresaCRM | null>(null);
@@ -227,6 +229,40 @@ export function CRMKanban() {
     return filteredEmpresas.filter((e) => e.status === statusId);
   };
 
+  const handleDownloadEmpresas = () => {
+    if (!empresas || empresas.length === 0) {
+      toast.warning("Nenhuma empresa no CRM para exportar.");
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const dadosFormatados = empresas.map((empresa) => ({
+        Nome: empresa.nome || "",
+        CNPJ: empresa.cnpj || "",
+        Responsável: Array.isArray(empresa.nome_responsavel) 
+          ? empresa.nome_responsavel[0] || "" 
+          : empresa.nome_responsavel || "",
+        Email: empresa.email_contato || "",
+        Telefone: empresa.telefone_contato || "",
+        Status: CRM_STATUS_LABELS[empresa.status] || empresa.status,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dadosFormatados);
+      ws["!cols"] = [{ wch: 40 }, { wch: 20 }, { wch: 30 }, { wch: 35 }, { wch: 18 }, { wch: 15 }];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "CRM");
+      XLSX.writeFile(wb, "empresas_crm.xlsx");
+
+      toast.success(`${empresas.length} empresas exportadas com sucesso!`);
+    } catch (error: any) {
+      console.error("Erro ao exportar empresas:", error);
+      toast.error("Erro ao exportar: " + error.message);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -262,6 +298,10 @@ export function CRMKanban() {
 
         {/* Scroll Navigation Buttons */}
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleDownloadEmpresas} disabled={isDownloading}>
+            <Download className="mr-2 h-4 w-4" />
+            Baixar
+          </Button>
           <Button variant="outline" size="icon" onClick={scrollLeft} className="h-8 w-8">
             <ChevronLeft className="h-4 w-4" />
           </Button>

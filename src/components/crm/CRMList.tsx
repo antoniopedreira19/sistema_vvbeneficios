@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // ADICIONADO: Import do ícone Copy
-import { Search, Mail, Phone, MoreHorizontal, Users, Eye, FileCheck, Filter, Pencil, Copy } from "lucide-react";
+import { Search, Mail, Phone, MoreHorizontal, Users, Eye, FileCheck, Filter, Pencil, Copy, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,6 +57,7 @@ export function CRMList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [contratoFilter, setContratoFilter] = useState<ContratoFilterType>("todos");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const [selectedEmpresa, setSelectedEmpresa] = useState<EmpresaCRM | null>(null);
   const [empresaParaEditar, setEmpresaParaEditar] = useState<EmpresaCRM | null>(null);
@@ -133,6 +135,38 @@ export function CRMList() {
     setDetailDialogOpen(true);
   };
 
+  const handleDownloadEmpresas = () => {
+    if (!empresas || empresas.length === 0) {
+      toast.warning("Nenhuma empresa ativa para exportar.");
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const dadosFormatados = empresas.map((empresa) => ({
+        Nome: empresa.nome || "",
+        CNPJ: empresa.cnpj || "",
+        Responsável: getFirstResponsavel(empresa.nome_responsavel) || "",
+        Email: empresa.email_contato || "",
+        Telefone: empresa.telefone_contato || "",
+        Status: CRM_STATUS_LABELS[empresa.status] || empresa.status,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dadosFormatados);
+      ws["!cols"] = [{ wch: 40 }, { wch: 20 }, { wch: 30 }, { wch: 35 }, { wch: 18 }, { wch: 15 }];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Empresas Ativas");
+      XLSX.writeFile(wb, "empresas_ativas.xlsx");
+
+      toast.success(`${empresas.length} empresas exportadas com sucesso!`);
+    } catch (error: any) {
+      console.error("Erro ao exportar empresas:", error);
+      toast.error("Erro ao exportar: " + error.message);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const filteredEmpresas =
     empresas?.filter((empresa) => {
       const matchesSearch =
@@ -167,6 +201,10 @@ export function CRMList() {
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
               Carteira de Clientes ({filteredEmpresas.length})
+              <Button variant="outline" size="sm" onClick={handleDownloadEmpresas} disabled={isDownloading} className="ml-2">
+                <Download className="mr-2 h-4 w-4" />
+                Baixar
+              </Button>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
