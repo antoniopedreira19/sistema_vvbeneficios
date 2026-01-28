@@ -7,12 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { User, Mail, Phone, Search, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { User, Mail, Phone, Search, ChevronLeft, ChevronRight, Download, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { EmpresaCRM, CRM_STATUS_LABELS, CRM_FUNNEL_STATUSES } from "@/types/crm";
 import EmpresaDetailDialog from "./EmpresaDetailDialog";
 import { UploadContratoDialog } from "./UploadContratoDialog";
+import { ImportarEmpresasDialog } from "./ImportarEmpresasDialog";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 
 const CRM_COLUMNS = [
@@ -89,6 +90,7 @@ export function CRMKanban() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [empresaParaContrato, setEmpresaParaContrato] = useState<EmpresaCRM | null>(null);
   const [pendingDragResult, setPendingDragResult] = useState<DropResult | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   // Realtime subscription for empresas
   useRealtimeSubscription({
@@ -298,6 +300,10 @@ export function CRMKanban() {
 
         {/* Scroll Navigation Buttons */}
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Importar
+          </Button>
           <Button variant="outline" size="sm" onClick={handleDownloadEmpresas} disabled={isDownloading}>
             <Download className="mr-2 h-4 w-4" />
             Baixar
@@ -428,6 +434,12 @@ export function CRMKanban() {
         empresaId={empresaParaContrato?.id || ""}
         empresaNome={empresaParaContrato?.nome || ""}
         onSuccess={handleUploadSuccess}
+      />
+
+      <ImportarEmpresasDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["empresas-crm"] })}
       />
     </>
   );

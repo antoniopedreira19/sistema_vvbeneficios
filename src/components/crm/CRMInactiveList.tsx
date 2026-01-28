@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Mail, Phone, MoreHorizontal, ArchiveX, Download } from "lucide-react";
+import { Search, Mail, Phone, MoreHorizontal, ArchiveX, Download, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import EmpresaDetailDialog from "@/components/crm/EmpresaDetailDialog";
+import { ImportarEmpresasDialog } from "@/components/crm/ImportarEmpresasDialog";
 import { EmpresaCRM, CRM_STATUS_LABELS } from "@/types/crm";
 import { toast } from "sonner";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
@@ -46,6 +47,7 @@ export function CRMInactiveList() {
   const [selectedEmpresa, setSelectedEmpresa] = useState<EmpresaCRM | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   useRealtimeSubscription({
@@ -145,11 +147,15 @@ export function CRMInactiveList() {
   return (
     <Card className="border-red-100/50">
       <CardHeader>
-        <CardTitle className="flex justify-between items-center text-slate-700">
+        <CardTitle className="flex justify-between items-center text-foreground">
           <div className="flex items-center gap-2">
             <ArchiveX className="h-5 w-5 text-muted-foreground" />
             Empresas Inativas ({empresas?.length || 0})
-            <Button variant="outline" size="sm" onClick={handleDownloadEmpresas} disabled={isDownloading} className="ml-2">
+            <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)} className="ml-2">
+              <Upload className="mr-2 h-4 w-4" />
+              Importar
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDownloadEmpresas} disabled={isDownloading}>
               <Download className="mr-2 h-4 w-4" />
               Baixar
             </Button>
@@ -299,6 +305,12 @@ export function CRMInactiveList() {
           statusLabels={CRM_STATUS_LABELS}
           onUpdateStatus={handleUpdateStatus}
           onEmpresaUpdated={handleEmpresaUpdated}
+        />
+
+        <ImportarEmpresasDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["empresas-inativas"] })}
         />
       </CardContent>
     </Card>
