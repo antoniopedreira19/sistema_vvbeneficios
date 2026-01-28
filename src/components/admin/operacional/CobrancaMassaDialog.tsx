@@ -133,13 +133,14 @@ export function CobrancaMassaDialog() {
   const empresasSelecionadas = pendentes.filter((e) => selectedIds.has(e.id));
 
   // 3. Ação: Chamar edge function para enviar via n8n
-  const handleDispararCobranca = async () => {
+  const handleDispararCobranca = async (tipo: "primeira" | "proximas") => {
     if (empresasSelecionadas.length === 0) {
       toast.warning("Selecione pelo menos uma empresa.");
       return;
     }
 
-    if (!confirm(`Deseja realmente enviar e-mails de cobrança para ${empresasSelecionadas.length} empresas?`)) return;
+    const tipoLabel = tipo === "primeira" ? "Primeira Cobrança" : "Próximas Cobranças";
+    if (!confirm(`Deseja realmente enviar "${tipoLabel}" para ${empresasSelecionadas.length} empresas?`)) return;
 
     setDisparando(true);
     try {
@@ -148,16 +149,22 @@ export function CobrancaMassaDialog() {
         email: emp.email,
       }));
 
+      // Webhook diferente para próximas cobranças
+      const webhookUrl = tipo === "proximas" 
+        ? "https://grifoworkspace.app.n8n.cloud/webhook/cobrancas-listas-posteriores"
+        : undefined; // undefined usa o webhook padrão
+
       const { data, error } = await supabase.functions.invoke("disparar-cobranca-massa", {
         body: { 
           competencia,
           empresas: empresasPayload,
+          webhook_url: webhookUrl,
         },
       });
 
       if (error) throw error;
 
-      toast.success(`Cobrança enviada para ${empresasSelecionadas.length} empresas!`);
+      toast.success(`${tipoLabel} enviada para ${empresasSelecionadas.length} empresas!`);
       queryClient.invalidateQueries({ queryKey: ["historico-cobrancas"] });
       setSelectedIds(new Set());
       setActiveTab("historico");
@@ -177,7 +184,7 @@ export function CobrancaMassaDialog() {
       <DialogTrigger asChild>
         <Button variant="destructive" className="gap-2">
           <MailWarning className="h-4 w-4" />
-          Cobrar Pendentes
+          Cobranças
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh]">
@@ -302,14 +309,14 @@ export function CobrancaMassaDialog() {
               )}
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Cancelar
               </Button>
               <Button
-                onClick={handleDispararCobranca}
+                onClick={() => handleDispararCobranca("primeira")}
                 disabled={selectedIds.size === 0 || disparando || isLoading}
-                className="bg-red-600 hover:bg-red-700"
+                variant="default"
               >
                 {disparando ? (
                   <>
@@ -317,7 +324,22 @@ export function CobrancaMassaDialog() {
                   </>
                 ) : (
                   <>
-                    Enviar {selectedIds.size} E-mail{selectedIds.size !== 1 ? "s" : ""} <Send className="ml-2 h-4 w-4" />
+                    Primeira Cobrança ({selectedIds.size}) <Send className="ml-2 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => handleDispararCobranca("proximas")}
+                disabled={selectedIds.size === 0 || disparando || isLoading}
+                variant="secondary"
+              >
+                {disparando ? (
+                  <>
+                    Enviando... <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    Próximas Cobranças ({selectedIds.size}) <Send className="ml-2 h-4 w-4" />
                   </>
                 )}
               </Button>
