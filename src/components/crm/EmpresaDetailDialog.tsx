@@ -17,13 +17,13 @@ import {
   Download,
   Trash2,
   Loader2,
+  Eye,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { EmpresaCRM, LOTE_STATUS_LABELS, CRM_FUNNEL_STATUSES } from "@/types/crm";
 import { EditarEmpresaDialog } from "@/components/admin/EditarEmpresaDialog";
 import { supabase } from "@/integrations/supabase/client";
-// 1. Importando o botão
 import { GerarAdendoBtn } from "@/components/shared/GerarAdendoBtn";
 
 interface EmpresaDetailDialogProps {
@@ -36,8 +36,10 @@ interface EmpresaDetailDialogProps {
 }
 
 interface LoteCompetencia {
+  id: string;
   competencia: string;
   status: string;
+  adendo_url?: string | null;
 }
 
 const STATUS_BADGE_VARIANTS: Record<string, string> = {
@@ -65,6 +67,11 @@ const EmpresaDetailDialog = ({
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const queryClient = useQueryClient();
+
+  // Lotes disponíveis para gerar adendo (concluídos ou faturados)
+  const lotesParaAdendo = competencias.filter(
+    (lote) => lote.status === "concluido" || lote.status === "faturado"
+  );
 
   const handleDownloadContrato = async () => {
     if (!empresa?.contrato_url) return;
@@ -109,7 +116,7 @@ const EmpresaDetailDialog = ({
     try {
       const { data, error } = await supabase
         .from("lotes_mensais")
-        .select("competencia, status")
+        .select("id, competencia, status, adendo_url")
         .eq("empresa_id", empresa.id)
         .order("competencia", { ascending: false });
 
@@ -162,6 +169,11 @@ const EmpresaDetailDialog = ({
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleAdendoGerado = () => {
+    // Recarregar competências para mostrar o novo adendo
+    fetchCompetencias();
   };
 
   const empresaForEdit = {
@@ -339,9 +351,14 @@ const EmpresaDetailDialog = ({
                     <p className="text-sm text-muted-foreground italic px-1">Nenhum contrato anexado</p>
                   )}
 
-                  {/* 2. Botão de Gerar Adendo - Posicionado EMBAIXO, sempre visível */}
+                  {/* Botão de Gerar Adendo - Agora passa os lotes */}
                   <div className="flex justify-start">
-                    <GerarAdendoBtn empresaId={empresa.id} variant="outline" />
+                    <GerarAdendoBtn 
+                      empresaId={empresa.id} 
+                      lotes={lotesParaAdendo}
+                      variant="outline" 
+                      onAdendoGerado={handleAdendoGerado}
+                    />
                   </div>
                 </div>
               </div>
@@ -397,12 +414,51 @@ const EmpresaDetailDialog = ({
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {competencias.map((lote) => (
-                      <div key={lote.competencia} className="flex items-center gap-3 p-2 rounded-md bg-muted/50">
+                      <div key={lote.id} className="flex items-center gap-3 p-2 rounded-md bg-muted/50">
                         <Checkbox checked disabled className="data-[state=checked]:bg-primary" />
                         <span className="text-sm font-medium text-foreground">{lote.competencia}</span>
-                        <Badge variant="outline" className="ml-auto text-xs">
+                        <Badge variant="outline" className="text-xs">
                           {LOTE_STATUS_LABELS[lote.status] || lote.status}
                         </Badge>
+                        
+                        {/* Botões de ação do adendo */}
+                        {lote.adendo_url && (
+                          <div className="flex items-center gap-1 ml-auto">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(lote.adendo_url!, "_blank")}
+                              className="h-6 w-6 p-0 hover:bg-primary/10"
+                              title="Visualizar Adendo"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  const response = await fetch(lote.adendo_url!);
+                                  const blob = await response.blob();
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  a.download = `adendo-${lote.competencia.replace("/", "-")}.pdf`;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  window.URL.revokeObjectURL(url);
+                                  document.body.removeChild(a);
+                                } catch (error) {
+                                  window.open(lote.adendo_url!, "_blank");
+                                }
+                              }}
+                              className="h-6 w-6 p-0 hover:bg-primary/10"
+                              title="Baixar Adendo"
+                            >
+                              <Download className="h-3.5 w-3.5 text-primary" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

@@ -425,6 +425,7 @@ export type Database = {
       }
       lotes_mensais: {
         Row: {
+          adendo_url: string | null
           aprovado_em: string | null
           arquivo_url: string | null
           competencia: string
@@ -448,6 +449,7 @@ export type Database = {
           valor_total: number | null
         }
         Insert: {
+          adendo_url?: string | null
           aprovado_em?: string | null
           arquivo_url?: string | null
           competencia: string
@@ -471,6 +473,7 @@ export type Database = {
           valor_total?: number | null
         }
         Update: {
+          adendo_url?: string | null
           aprovado_em?: string | null
           arquivo_url?: string | null
           competencia?: string
