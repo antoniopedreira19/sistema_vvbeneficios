@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const N8N_WEBHOOK_URL = "https://grifoworkspace.app.n8n.cloud/webhook/cobrancas-listas";
+const DEFAULT_WEBHOOK_URL = "https://grifoworkspace.app.n8n.cloud/webhook/cobrancas-listas";
 const TEMPLATE_URL = "https://gkmobhbmgxwrpuucoykn.supabase.co/storage/v1/object/public/MainBucket/modelo_padrao.xlsx";
 
 serve(async (req) => {
@@ -29,7 +29,10 @@ serve(async (req) => {
       userId = user?.id || null;
     }
 
-    const { competencia, empresas } = await req.json();
+    const { competencia, empresas, webhook_url } = await req.json();
+
+    // Usar webhook customizado ou o padrão
+    const targetWebhookUrl = webhook_url || DEFAULT_WEBHOOK_URL;
 
     if (!empresas || empresas.length === 0) {
       return new Response(
@@ -48,9 +51,9 @@ serve(async (req) => {
       })),
     };
 
-    console.log("Enviando para n8n:", JSON.stringify(payload));
+    console.log("Enviando para n8n:", targetWebhookUrl, JSON.stringify(payload));
 
-    const response = await fetch(N8N_WEBHOOK_URL, {
+    const response = await fetch(targetWebhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
