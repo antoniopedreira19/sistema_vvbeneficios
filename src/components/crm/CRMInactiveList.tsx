@@ -5,7 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Mail, Phone, MoreHorizontal, ArchiveX } from "lucide-react";
+import { Search, Mail, Phone, MoreHorizontal, ArchiveX, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +45,7 @@ export function CRMInactiveList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedEmpresa, setSelectedEmpresa] = useState<EmpresaCRM | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const queryClient = useQueryClient();
 
   useRealtimeSubscription({
@@ -84,6 +86,42 @@ export function CRMInactiveList() {
     queryClient.invalidateQueries({ queryKey: ["empresas-inativas"] });
   };
 
+  const handleDownloadEmpresas = () => {
+    if (!empresas || empresas.length === 0) {
+      toast.warning("Nenhuma empresa inativa para exportar.");
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const dadosFormatados = empresas.map((empresa) => ({
+        Nome: empresa.nome || "",
+        CNPJ: empresa.cnpj || "",
+        Responsável: (() => {
+          const nome = empresa.nome_responsavel;
+          const first = Array.isArray(nome) ? nome[0] : nome;
+          return first ? toTitleCase(first) : "";
+        })(),
+        Email: empresa.email_contato || "",
+        Telefone: empresa.telefone_contato || "",
+        Status: CRM_STATUS_LABELS[empresa.status] || empresa.status,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dadosFormatados);
+      ws["!cols"] = [{ wch: 40 }, { wch: 20 }, { wch: 30 }, { wch: 35 }, { wch: 18 }, { wch: 15 }];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Empresas Inativas");
+      XLSX.writeFile(wb, "empresas_inativas.xlsx");
+
+      toast.success(`${empresas.length} empresas exportadas com sucesso!`);
+    } catch (error: any) {
+      console.error("Erro ao exportar empresas:", error);
+      toast.error("Erro ao exportar: " + error.message);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const filteredEmpresas =
     empresas?.filter(
       (empresa) => empresa.nome.toLowerCase().includes(searchTerm.toLowerCase()) || empresa.cnpj.includes(searchTerm),
@@ -109,8 +147,12 @@ export function CRMInactiveList() {
       <CardHeader>
         <CardTitle className="flex justify-between items-center text-slate-700">
           <div className="flex items-center gap-2">
-            <ArchiveX className="h-5 w-5 text-slate-500" />
+            <ArchiveX className="h-5 w-5 text-muted-foreground" />
             Empresas Inativas ({empresas?.length || 0})
+            <Button variant="outline" size="sm" onClick={handleDownloadEmpresas} disabled={isDownloading} className="ml-2">
+              <Download className="mr-2 h-4 w-4" />
+              Baixar
+            </Button>
           </div>
           <div className="relative w-72">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
