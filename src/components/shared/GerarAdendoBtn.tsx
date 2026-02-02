@@ -22,12 +22,18 @@ import { FileText, Loader2, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCPF, formatCNPJ, formatCurrency } from "@/lib/validators";
-import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import logoAdendo from "@/assets/logo-vv-adendo.png";
 
-// URL DA LOGO
-const LOGO_URL =
-  "https://gkmobhbmgxwrpuucoykn.supabase.co/storage/v1/object/public/MainBucket/Gemini_Generated_Image_c0slgsc0slgsc0sl-removebg-preview.png";
+// Mapeamento de mês para abreviação
+const MESES_ABREV: Record<string, string> = {
+  "janeiro": "jan", "fevereiro": "fev", "março": "mar", "abril": "abr",
+  "maio": "mai", "junho": "jun", "julho": "jul", "agosto": "ago",
+  "setembro": "set", "outubro": "out", "novembro": "nov", "dezembro": "dez"
+};
+
+// Colors
+const PRIMARY_COLOR = "#203455";
 
 interface LoteOption {
   id: string;
@@ -71,231 +77,257 @@ export function GerarAdendoBtn({
     return `${day}/${month}/${year}`;
   };
 
-  const generateHtml = (empresa: any, colaboradores: any[], competencia: string) => {
-    return `
-      <!DOCTYPE html>
-      <html lang="pt-BR">
-      <head>
-        <meta charset="UTF-8">
-        <title>Adendo Contratual - ${empresa.nome} - ${competencia}</title>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-          
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          
-          body { 
-            font-family: 'Inter', sans-serif; 
-            color: #333; 
-            line-height: 1.4; 
-            font-size: 13px; 
-            background: white;
-            padding: 20px;
-          }
-          
-          .page {
-            width: 210mm;
-            min-height: 297mm;
-            padding: 15mm 20mm;
-            background: white;
-            margin: 0 auto;
-          }
+  const getFileNameFromCompetencia = (competencia: string, empresaNome: string) => {
+    const [mesNome, ano] = competencia.split("/");
+    const mesAbrev = MESES_ABREV[mesNome.toLowerCase()] || mesNome.substring(0, 3).toLowerCase();
+    
+    const nomeSlug = empresaNome
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "_")
+      .replace(/_+/g, "_")
+      .substring(0, 30);
+    
+    return `adendo_${nomeSlug}_${mesAbrev}${ano}`;
+  };
 
-          .page-one-container {
-            display: flex;
-            flex-direction: column;
-            min-height: calc(297mm - 30mm);
-          }
+  const loadImageAsBase64 = (src: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
+  };
 
-          .header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center;
-            border-bottom: 2px solid #203455; 
-            padding-bottom: 15px; 
-            margin-bottom: 30px; 
-          }
-          .header-title { 
-            color: #203455; 
-            font-weight: 700; 
-            font-size: 14px; 
-            text-transform: uppercase; 
-          }
-          .logo { 
-            width: 90px;
-            height: auto; 
-            object-fit: contain; 
-          }
-          
-          .date { text-align: right; margin-bottom: 25px; font-size: 12px; color: #666; }
-          
-          .content-block { margin-bottom: 20px; }
-          .label { font-weight: 700; color: #000; margin-right: 5px; }
-          
-          .text-justify { text-align: justify; margin-bottom: 15px; }
+  const generatePdfDirectly = async (empresa: any, colaboradores: any[], competencia: string) => {
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const marginLeft = 20;
+    const marginRight = 20;
+    const contentWidth = pageWidth - marginLeft - marginRight;
+    
+    // Carregar logo
+    let logoBase64 = "";
+    try {
+      logoBase64 = await loadImageAsBase64(logoAdendo);
+    } catch (e) {
+      console.warn("Não foi possível carregar a logo", e);
+    }
 
-          .section-title { 
-            color: #203455; 
-            font-weight: 700; 
-            font-size: 14px; 
-            margin-top: 25px; 
-            margin-bottom: 10px; 
-            text-transform: uppercase; 
-            border-left: 4px solid #203455;
-            padding-left: 10px;
-          }
+    // ===== PÁGINA 1: CAPA =====
+    const drawHeader = (y: number) => {
+      pdf.setDrawColor(PRIMARY_COLOR);
+      pdf.setLineWidth(0.5);
+      
+      // Título
+      pdf.setFontSize(12);
+      pdf.setTextColor(PRIMARY_COLOR);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("SEGURO DE ACIDENTES PESSOAIS COLETIVO", marginLeft, y);
+      
+      // Logo
+      if (logoBase64) {
+        pdf.addImage(logoBase64, "PNG", pageWidth - marginRight - 30, y - 10, 30, 15);
+      }
+      
+      // Linha abaixo do header
+      pdf.line(marginLeft, y + 5, pageWidth - marginRight, y + 5);
+      
+      return y + 15;
+    };
 
-          .spacer { flex-grow: 1; }
+    let y = drawHeader(25);
 
-          .signature-wrapper {
-            width: 100%;
-            text-align: center;
-            margin-top: 40px;
-            margin-bottom: 10px;
-          }
-          .signature-line { 
-            border-top: 1px solid #000; 
-            width: 350px; 
-            margin: 0 auto 5px auto; 
-          }
-          .signature-role { font-weight: 700; font-size: 12px; text-transform: uppercase; }
-          .signature-desc { font-size: 11px; margin-top: 2px; }
+    // Data
+    pdf.setFontSize(10);
+    pdf.setTextColor(100, 100, 100);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(getDataAtualExtenso(), pageWidth - marginRight, y, { align: "right" });
+    y += 15;
 
-          .page-break { page-break-before: always; margin-top: 20px; }
-          .list-title { 
-            font-size: 14px; 
-            font-weight: 700; 
-            color: #203455; 
-            margin: 20px 0 10px 0; 
-            text-transform: uppercase;
-          }
-          
-          table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            font-size: 11px; 
-            border: 1px solid #e2e8f0;
-          }
-          th { 
-            background-color: #203455; 
-            color: white; 
-            padding: 8px; 
-            text-align: left; 
-            text-transform: uppercase;
-            font-weight: 600;
-            border: 1px solid #1e293b;
-          }
-          td { 
-            padding: 8px; 
-            border: 1px solid #e2e8f0; 
-            color: #333;
-          }
-          tr:nth-child(even) { background-color: #f8fafc; }
-          
-          .total-row { 
-            text-align: right; 
-            font-weight: 700; 
-            padding: 10px 0; 
-            font-size: 12px; 
-            color: #203455; 
-          }
-          
-          .text-center { text-align: center; }
-          .text-right { text-align: right; }
-        </style>
-      </head>
-      <body>
-        <div class="page">
-          <div class="page-one-container">
-            
-            <div class="header">
-              <div class="header-title">SEGURO DE ACIDENTES PESSOAIS COLETIVO</div>
-              <img src="${LOGO_URL}" class="logo" alt="Logo VV" crossorigin="anonymous" />
-            </div>
+    // Informações do estipulante
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(10);
+    
+    const infoLines = [
+      { label: "ESTIPULANTE:", value: "VV BENEFICIOS E CONSULTORIA LTDA" },
+      { label: "CNPJ Nº:", value: "56.967.823/0001-45" },
+      { label: "Email:", value: "contato@vvbeneficios.com.br" },
+      { label: "Telefone:", value: "(71) 99692-8880" },
+      { label: "APÓLICE Nº:", value: apolice },
+      { label: "CORRETOR:", value: "GERSON BARTH PORTNOI" },
+      { label: "COMPETÊNCIA:", value: competencia },
+    ];
 
-            <div class="date">${getDataAtualExtenso()}</div>
+    infoLines.forEach((line) => {
+      pdf.setFont("helvetica", "bold");
+      pdf.text(line.label, marginLeft, y);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(line.value, marginLeft + 35, y);
+      y += 6;
+    });
 
-            <div class="content-block">
-              <div><span class="label">ESTIPULANTE:</span> VV BENEFICIOS E CONSULTORIA LTDA</div>
-              <div><span class="label">CNPJ Nº:</span> 56.967.823/0001-45</div>
-              <div><span class="label">Email:</span> contato@vvbeneficios.com.br</div>
-              <div><span class="label">Telefone:</span> (71) 99692-8880</div>
-              <div><span class="label">APÓLICE Nº:</span> ${apolice}</div>
-              <div><span class="label">CORRETOR:</span> GERSON BARTH PORTNOI</div>
-              <div><span class="label">COMPETÊNCIA:</span> ${competencia}</div>
-            </div>
+    y += 10;
 
-            <div class="text-justify">
-              Pelo presente documento, que passa a integrar a apólice nº <strong>${apolice}</strong> 
-              fica acordada entre as partes contratantes deste seguro que: A empresa mencionada está ativa e regular nesta apólice.
-            </div>
+    // Texto do documento
+    pdf.setFontSize(10);
+    const texto1 = `Pelo presente documento, que passa a integrar a apólice nº ${apolice}, fica acordada entre as partes contratantes deste seguro que: A empresa mencionada está ativa e regular nesta apólice.`;
+    const lines1 = pdf.splitTextToSize(texto1, contentWidth);
+    pdf.text(lines1, marginLeft, y);
+    y += lines1.length * 5 + 8;
 
-            <div class="text-justify">
-              <strong>Vigência:</strong> ${formatDataPTBR(dataInicio)} a ${formatDataPTBR(dataFim)} 
-              inclui-se o seguinte subestipulante:
-            </div>
+    const texto2 = `Vigência: ${formatDataPTBR(dataInicio)} a ${formatDataPTBR(dataFim)} inclui-se o seguinte subestipulante:`;
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Vigência:", marginLeft, y);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(`${formatDataPTBR(dataInicio)} a ${formatDataPTBR(dataFim)} inclui-se o seguinte subestipulante:`, marginLeft + 18, y);
+    y += 15;
 
-            <div class="section-title">DADOS DA EMPRESA</div>
-            <div class="content-block">
-              <div><span class="label">Nome:</span> ${empresa.nome.toUpperCase()}</div>
-              <div><span class="label">CNPJ:</span> ${formatCNPJ(empresa.cnpj)}</div>
-              <div><span class="label">Endereço:</span> ${empresa.endereco || "Não informado"}</div>
-            </div>
+    // Seção: Dados da Empresa
+    pdf.setFillColor(PRIMARY_COLOR);
+    pdf.rect(marginLeft, y - 4, 3, 8, "F");
+    pdf.setTextColor(PRIMARY_COLOR);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(11);
+    pdf.text("DADOS DA EMPRESA", marginLeft + 6, y);
+    y += 10;
 
-            <div class="spacer"></div>
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(10);
+    
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Nome:", marginLeft, y);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(empresa.nome.toUpperCase(), marginLeft + 15, y);
+    y += 6;
 
-            <div class="signature-wrapper">
-              <div class="signature-line"></div>
-              <div class="signature-role">Estipulante</div>
-              <div class="signature-desc">Assinatura do Representante Legal</div>
-            </div>
+    pdf.setFont("helvetica", "bold");
+    pdf.text("CNPJ:", marginLeft, y);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(formatCNPJ(empresa.cnpj), marginLeft + 15, y);
+    y += 6;
 
-          </div>
-        </div>
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Endereço:", marginLeft, y);
+    pdf.setFont("helvetica", "normal");
+    const endereco = empresa.endereco || "Não informado";
+    const enderecoLines = pdf.splitTextToSize(endereco, contentWidth - 25);
+    pdf.text(enderecoLines, marginLeft + 22, y);
+    y += enderecoLines.length * 5;
 
-        <div class="page">
-          <div class="header">
-            <div class="header-title">SEGURO DE ACIDENTES PESSOAIS COLETIVO</div>
-            <img src="${LOGO_URL}" class="logo" alt="Logo VV" crossorigin="anonymous" />
-          </div>
+    // Assinatura (no final da página 1)
+    const sigY = pageHeight - 50;
+    pdf.setDrawColor(0, 0, 0);
+    pdf.line(pageWidth / 2 - 50, sigY, pageWidth / 2 + 50, sigY);
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "bold");
+    pdf.text("ESTIPULANTE", pageWidth / 2, sigY + 6, { align: "center" });
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.text("Assinatura do Representante Legal", pageWidth / 2, sigY + 11, { align: "center" });
 
-          <div class="list-title">RELAÇÃO DE VIDAS - ${competencia}</div>
+    // ===== PÁGINAS 2+: TABELA DE COLABORADORES =====
+    const rowsPerPage = 28;
+    const totalPages = Math.ceil(colaboradores.length / rowsPerPage);
 
-          <table>
-            <thead>
-              <tr>
-                <th width="35%">NOME</th>
-                <th width="10%" class="text-center">SEXO</th>
-                <th width="15%" class="text-center">NASCIMENTO</th>
-                <th width="15%" class="text-center">CPF</th>
-                <th width="12%" class="text-right">SALÁRIO</th>
-                <th width="13%">CLASSIFICAÇÃO</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${colaboradores
-                .map(
-                  (c) => `
-                <tr>
-                  <td>${c.nome}</td>
-                  <td class="text-center">${c.sexo || "-"}</td>
-                  <td class="text-center">${formatDataPTBR(c.data_nascimento)}</td>
-                  <td class="text-center">${formatCPF(c.cpf)}</td>
-                  <td class="text-right">${formatCurrency(c.salario)}</td>
-                  <td>${c.classificacao_salario || c.classificacao || "-"}</td>
-                </tr>
-              `
-                )
-                .join("")}
-            </tbody>
-          </table>
+    for (let page = 0; page < totalPages; page++) {
+      pdf.addPage();
+      y = drawHeader(25);
+      
+      // Título da lista
+      pdf.setTextColor(PRIMARY_COLOR);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.text(`RELAÇÃO DE VIDAS - ${competencia.toUpperCase()}`, marginLeft, y);
+      y += 10;
 
-          <div class="total-row">
-            Total de Vidas: ${colaboradores.length}
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+      // Cabeçalho da tabela
+      const colWidths = [55, 18, 25, 30, 25, 30]; // Nome, Sexo, Nasc, CPF, Salário, Class
+      const headers = ["NOME", "SEXO", "NASCIMENTO", "CPF", "SALÁRIO", "CLASSIFICAÇÃO"];
+      
+      pdf.setFillColor(PRIMARY_COLOR);
+      pdf.rect(marginLeft, y - 4, contentWidth, 7, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "bold");
+      
+      let xPos = marginLeft + 2;
+      headers.forEach((header, i) => {
+        pdf.text(header, xPos, y);
+        xPos += colWidths[i];
+      });
+      y += 6;
+
+      // Linhas da tabela
+      const startIndex = page * rowsPerPage;
+      const endIndex = Math.min(startIndex + rowsPerPage, colaboradores.length);
+      const pageColabs = colaboradores.slice(startIndex, endIndex);
+
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7);
+
+      pageColabs.forEach((c, index) => {
+        // Fundo alternado
+        if (index % 2 === 1) {
+          pdf.setFillColor(248, 250, 252);
+          pdf.rect(marginLeft, y - 3, contentWidth, 6, "F");
+        }
+
+        xPos = marginLeft + 2;
+        
+        // Nome (truncar se muito longo)
+        const nome = c.nome.length > 30 ? c.nome.substring(0, 28) + "..." : c.nome;
+        pdf.text(nome, xPos, y);
+        xPos += colWidths[0];
+
+        // Sexo
+        const sexo = c.sexo === "Masculino" ? "M" : c.sexo === "Feminino" ? "F" : "-";
+        pdf.text(sexo, xPos, y);
+        xPos += colWidths[1];
+
+        // Nascimento
+        pdf.text(formatDataPTBR(c.data_nascimento), xPos, y);
+        xPos += colWidths[2];
+
+        // CPF
+        pdf.text(formatCPF(c.cpf), xPos, y);
+        xPos += colWidths[3];
+
+        // Salário
+        pdf.text(formatCurrency(c.salario), xPos, y);
+        xPos += colWidths[4];
+
+        // Classificação
+        const classif = c.classificacao_salario || c.classificacao || "-";
+        const classifTrunc = classif.length > 18 ? classif.substring(0, 16) + "..." : classif;
+        pdf.text(classifTrunc, xPos, y);
+
+        y += 6;
+      });
+
+      // Se é a última página, mostrar total
+      if (page === totalPages - 1) {
+        y += 5;
+        pdf.setTextColor(PRIMARY_COLOR);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(10);
+        pdf.text(`Total de Vidas: ${colaboradores.length}`, pageWidth - marginRight, y, { align: "right" });
+      }
+    }
+
+    return pdf;
   };
 
   const handleGerarESalvar = async () => {
@@ -340,58 +372,13 @@ export function GerarAdendoBtn({
         return;
       }
 
-      // 3. Gerar HTML e renderizar em iframe oculto
-      const htmlContent = generateHtml(empresa, colaboradores, selectedLote.competencia);
+      // 3. Gerar PDF diretamente com jsPDF
+      const pdf = await generatePdfDirectly(empresa, colaboradores, selectedLote.competencia);
 
-      // Criar iframe oculto para renderizar o HTML
-      const iframe = document.createElement("iframe");
-      iframe.style.position = "absolute";
-      iframe.style.left = "-9999px";
-      iframe.style.top = "-9999px";
-      iframe.style.width = "210mm";
-      iframe.style.height = "auto";
-      document.body.appendChild(iframe);
-
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!iframeDoc) throw new Error("Erro ao criar iframe");
-
-      iframeDoc.open();
-      iframeDoc.write(htmlContent);
-      iframeDoc.close();
-
-      // Aguardar carregamento de fontes e imagens
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // 4. Capturar com html2canvas
-      const pages = iframeDoc.querySelectorAll(".page");
-      const pdf = new jsPDF("p", "mm", "a4");
-
-      for (let i = 0; i < pages.length; i++) {
-        const page = pages[i] as HTMLElement;
-        const canvas = await html2canvas(page, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: "#ffffff",
-        });
-
-        const imgData = canvas.toDataURL("image/jpeg", 0.95);
-        const imgWidth = 210;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-        if (i > 0) {
-          pdf.addPage();
-        }
-        pdf.addImage(imgData, "JPEG", 0, 0, imgWidth, imgHeight);
-      }
-
-      // Limpar iframe
-      document.body.removeChild(iframe);
-
-      // 5. Converter para Blob e fazer upload
+      // 4. Converter para Blob e fazer upload
       const pdfBlob = pdf.output("blob");
-      const competenciaSlug = selectedLote.competencia.replace("/", "-");
-      const fileName = `adendos/${empresaId}/${competenciaSlug}.pdf`;
+      const fileNameBase = getFileNameFromCompetencia(selectedLote.competencia, empresa.nome);
+      const fileName = `adendos/${empresaId}/${fileNameBase}.pdf`;
 
       const { error: uploadError } = await supabase.storage
         .from("contratos")
@@ -402,10 +389,10 @@ export function GerarAdendoBtn({
 
       if (uploadError) throw uploadError;
 
-      // 6. Obter URL pública
+      // 5. Obter URL pública
       const { data: urlData } = supabase.storage.from("contratos").getPublicUrl(fileName);
 
-      // 7. Atualizar lote com a URL do adendo
+      // 6. Atualizar lote com a URL do adendo
       const { error: updateError } = await supabase
         .from("lotes_mensais")
         .update({ adendo_url: urlData.publicUrl })
@@ -433,7 +420,6 @@ export function GerarAdendoBtn({
     }
   };
 
-  // Se não há lotes disponíveis, mostrar botão desabilitado
   const hasLotes = lotes.length > 0;
 
   return (
