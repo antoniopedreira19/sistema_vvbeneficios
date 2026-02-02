@@ -32,8 +32,9 @@ const MESES_ABREV: Record<string, string> = {
   "setembro": "set", "outubro": "out", "novembro": "nov", "dezembro": "dez"
 };
 
-// Colors
-const PRIMARY_COLOR = "#203455";
+// Colors - Nova identidade visual VV Benefícios
+const PRIMARY_COLOR = "#364553";
+const ACCENT_COLOR = "#E3AB02";
 
 interface LoteOption {
   id: string;
@@ -195,7 +196,7 @@ export function GerarAdendoBtn({
     y += 15;
 
     // Seção: Dados da Empresa
-    pdf.setFillColor(PRIMARY_COLOR);
+    pdf.setFillColor(ACCENT_COLOR);
     pdf.rect(marginLeft, y - 4, 3, 8, "F");
     pdf.setTextColor(PRIMARY_COLOR);
     pdf.setFont("helvetica", "bold");
@@ -256,7 +257,7 @@ export function GerarAdendoBtn({
       const colWidths = [55, 18, 25, 30, 25, 30]; // Nome, Sexo, Nasc, CPF, Salário, Class
       const headers = ["NOME", "SEXO", "NASCIMENTO", "CPF", "SALÁRIO", "CLASSIFICAÇÃO"];
       
-      pdf.setFillColor(PRIMARY_COLOR);
+      pdf.setFillColor(ACCENT_COLOR);
       pdf.rect(marginLeft, y - 4, contentWidth, 7, "F");
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(8);
