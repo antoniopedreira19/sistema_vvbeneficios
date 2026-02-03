@@ -391,7 +391,7 @@ export function CRMKanban() {
       </DragDropContext>
 
       <EmpresaDetailDialog
-        empresa={selectedEmpresa}
+        empresa={selectedEmpresa ? filteredEmpresas.find(e => e.id === selectedEmpresa.id) || selectedEmpresa : null}
         open={!!selectedEmpresa}
         onOpenChange={(open) => !open && setSelectedEmpresa(null)}
         statusLabels={CRM_STATUS_LABELS}
@@ -414,14 +414,27 @@ export function CRMKanban() {
             return;
           }
           
-          queryClient.setQueryData<EmpresaCRM[]>(["empresas-crm"], (old) => {
-            if (!old) return old;
-            return old.map((e) => (e.id === empresaId ? { ...e, status: newStatus as any } : e));
-          });
+          // Optimistic update em todas as queries relevantes
+          const updateInList = (old: EmpresaCRM[] | undefined) => 
+            old?.map((e) => (e.id === empresaId ? { ...e, status: newStatus as any } : e)) || [];
+          
+          queryClient.setQueryData<EmpresaCRM[]>(["empresas-crm"], updateInList);
+          queryClient.setQueryData<EmpresaCRM[]>(["empresas-ativas"], updateInList);
+          queryClient.setQueryData<EmpresaCRM[]>(["empresas-inativas"], updateInList);
+          queryClient.setQueryData<EmpresaCRM[]>(["crm-empresas"], updateInList);
+          
           updateStatusMutation.mutate({ id: empresaId, status: newStatus });
+          
+          // Se mudou de/para "ativa", fecha o dialog
+          if (newStatus === "ativa" || empresa?.status === "ativa") {
+            setSelectedEmpresa(null);
+          }
         }}
         onEmpresaUpdated={() => {
           queryClient.invalidateQueries({ queryKey: ["empresas-crm"] });
+          queryClient.invalidateQueries({ queryKey: ["empresas-ativas"] });
+          queryClient.invalidateQueries({ queryKey: ["empresas-inativas"] });
+          queryClient.invalidateQueries({ queryKey: ["crm-empresas"] });
         }}
       />
 

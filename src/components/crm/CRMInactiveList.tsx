@@ -70,18 +70,37 @@ export function CRMInactiveList() {
   };
 
   const handleUpdateStatus = async (empresaId: string, newStatus: string) => {
+    // Snapshots para rollback
+    const previousInativas = queryClient.getQueryData<EmpresaCRM[]>(["empresas-inativas"]);
+    
+    // Update otimista - remover da lista se status mudar para "ativa"
+    if (newStatus === "ativa") {
+      queryClient.setQueryData<EmpresaCRM[]>(["empresas-inativas"], (old) => 
+        old?.filter(e => e.id !== empresaId) || []
+      );
+      setDetailDialogOpen(false);
+    } else {
+      queryClient.setQueryData<EmpresaCRM[]>(["empresas-inativas"], (old) => 
+        old?.map(e => e.id === empresaId ? { ...e, status: newStatus as any } : e) || []
+      );
+    }
+    
     const { error } = await supabase
       .from("empresas")
       .update({ status: newStatus as any })
       .eq("id", empresaId);
 
     if (error) {
+      // Rollback
+      if (previousInativas) queryClient.setQueryData(["empresas-inativas"], previousInativas);
       toast.error("Erro ao atualizar status");
       return;
     }
 
     toast.success("Status atualizado com sucesso");
     queryClient.invalidateQueries({ queryKey: ["empresas-inativas"] });
+    queryClient.invalidateQueries({ queryKey: ["empresas-ativas"] });
+    queryClient.invalidateQueries({ queryKey: ["crm-empresas"] });
   };
 
   const handleEmpresaUpdated = () => {
@@ -299,9 +318,12 @@ export function CRMInactiveList() {
         )}
 
         <EmpresaDetailDialog
-          empresa={selectedEmpresa}
+          empresa={selectedEmpresa ? empresas?.find(e => e.id === selectedEmpresa.id) || selectedEmpresa : null}
           open={detailDialogOpen}
-          onOpenChange={setDetailDialogOpen}
+          onOpenChange={(open) => {
+            setDetailDialogOpen(open);
+            if (!open) setSelectedEmpresa(null);
+          }}
           statusLabels={CRM_STATUS_LABELS}
           onUpdateStatus={handleUpdateStatus}
           onEmpresaUpdated={handleEmpresaUpdated}

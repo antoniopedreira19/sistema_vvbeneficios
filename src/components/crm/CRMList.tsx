@@ -402,9 +402,12 @@ export function CRMList() {
       </Card>
 
       <EmpresaDetailDialog
-        empresa={selectedEmpresa}
+        empresa={selectedEmpresa ? empresas?.find(e => e.id === selectedEmpresa.id) || selectedEmpresa : null}
         open={detailDialogOpen}
-        onOpenChange={setDetailDialogOpen}
+        onOpenChange={(open) => {
+          setDetailDialogOpen(open);
+          if (!open) setSelectedEmpresa(null);
+        }}
         statusLabels={CRM_STATUS_LABELS}
         onUpdateStatus={handleUpdateStatus}
         onEmpresaUpdated={() => queryClient.invalidateQueries({ queryKey: ["empresas-ativas"] })}
