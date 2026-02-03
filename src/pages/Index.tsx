@@ -11,6 +11,7 @@ const Index = () => {
     isAdminOrOperacional, 
     isFinanceiro, 
     loading: roleLoading,
+    empresasLoading,
     empresasVinculadas,
     hasMultipleEmpresas
   } = useUserRole();
@@ -23,7 +24,8 @@ const Index = () => {
       return;
     }
 
-    if (!authLoading && !roleLoading && user && role) {
+    // Aguardar carregamento completo de role E empresas
+    if (!authLoading && !roleLoading && !empresasLoading && user && role) {
       const isFirstLogin = user.user_metadata?.first_login !== false;
       
       if (role === "cliente" && isFirstLogin) {
@@ -46,7 +48,7 @@ const Index = () => {
         navigate("/cliente/dashboard");
       }
     }
-  }, [user, role, isAdminOrOperacional, isFinanceiro, authLoading, roleLoading, navigate, hasMultipleEmpresas, empresasVinculadas]);
+  }, [user, role, isAdminOrOperacional, isFinanceiro, authLoading, roleLoading, empresasLoading, navigate, hasMultipleEmpresas, empresasVinculadas]);
 
   const handlePasswordChanged = () => {
     setShowPasswordDialog(false);

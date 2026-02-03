@@ -23,6 +23,7 @@ export const useUserRole = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [empresasVinculadas, setEmpresasVinculadas] = useState<EmpresaVinculada[]>([]);
+  const [empresasLoading, setEmpresasLoading] = useState(true);
   const [empresaAtiva, setEmpresaAtivaState] = useState<EmpresaVinculada | null>(null);
 
   const fetchEmpresasVinculadas = useCallback(async (userId: string) => {
@@ -89,10 +90,12 @@ export const useUserRole = () => {
       setEmpresasVinculadas([]);
       setEmpresaAtivaState(null);
       setLoading(false);
+      setEmpresasLoading(false);
       return;
     }
 
     const fetchRoleAndProfile = async () => {
+      setEmpresasLoading(true);
       try {
         // Fetch role
         const { data: roleData, error: roleError } = await supabase
@@ -130,6 +133,7 @@ export const useUserRole = () => {
         console.error("Error fetching role and profile:", error);
       } finally {
         setLoading(false);
+        setEmpresasLoading(false);
       }
     };
 
@@ -140,6 +144,7 @@ export const useUserRole = () => {
     role, 
     profile, 
     loading, 
+    empresasLoading,
     isAdmin: role === "admin", 
     isOperacional: role === "operacional",
     isCliente: role === "cliente",
