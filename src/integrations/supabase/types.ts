@@ -837,6 +837,7 @@ export type Database = {
         Returns: {
           cnpj: string
           email: string
+          emails_contato: Json
           id: string
           nome: string
           responsavel: string
