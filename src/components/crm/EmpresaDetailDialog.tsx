@@ -259,15 +259,23 @@ const EmpresaDetailDialog = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-muted-foreground text-xs uppercase tracking-wide flex items-center gap-1">
+              <Label className="text-muted-foreground text-xs uppercase tracking-wide flex items-center gap-1">
                   <User className="h-3 w-3" />
                   Responsável
                 </Label>
                 {(() => {
-                  const nomes = empresa.nome_responsavel;
-                  const cpfs = empresa.responsavel_cpf;
-                  const nomesArray = Array.isArray(nomes) ? nomes : nomes ? [nomes] : [];
-                  const cpfsArray = Array.isArray(cpfs) ? cpfs : [];
+                  // Prioriza os campos novos (responsavel_nome/cpf), fallback para legado (nome_responsavel)
+                  const nomesNovo = (empresa as any).responsavel_nome;
+                  const cpfsNovo = (empresa as any).responsavel_cpf;
+                  const nomeLegado = empresa.nome_responsavel;
+                  
+                  // Usa os campos novos se existirem, senão usa o legado
+                  const nomesArray = Array.isArray(nomesNovo) && nomesNovo.length > 0
+                    ? nomesNovo 
+                    : Array.isArray(nomeLegado) 
+                      ? nomeLegado 
+                      : nomeLegado ? [nomeLegado] : [];
+                  const cpfsArray = Array.isArray(cpfsNovo) ? cpfsNovo : [];
 
                   return nomesArray.length > 0 ? (
                     <div className="space-y-1">
