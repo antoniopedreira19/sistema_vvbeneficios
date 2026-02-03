@@ -277,24 +277,19 @@ const EmpresaDetailDialog = ({
                 <p className="text-lg font-semibold text-foreground">{empresa.nome}</p>
               </div>
 
+              {/* Responsáveis pela Assinatura */}
               <div className="space-y-2">
-              <Label className="text-muted-foreground text-xs uppercase tracking-wide flex items-center gap-1">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide flex items-center gap-1">
                   <User className="h-3 w-3" />
-                  Responsável
+                  Responsável (Assinatura)
                 </Label>
                 {(() => {
-                  // Prioriza os campos novos (responsavel_nome/cpf), fallback para legado (nome_responsavel)
-                  const nomesNovo = (empresa as any).responsavel_nome;
-                  const cpfsNovo = (empresa as any).responsavel_cpf;
-                  const nomeLegado = empresa.nome_responsavel;
-                  
-                  // Usa os campos novos se existirem, senão usa o legado
-                  const nomesArray = Array.isArray(nomesNovo) && nomesNovo.length > 0
-                    ? nomesNovo 
-                    : Array.isArray(nomeLegado) 
-                      ? nomeLegado 
-                      : nomeLegado ? [nomeLegado] : [];
-                  const cpfsArray = Array.isArray(cpfsNovo) ? cpfsNovo : [];
+                  const nomesArray = Array.isArray((empresa as any).responsavel_nome) 
+                    ? (empresa as any).responsavel_nome 
+                    : [];
+                  const cpfsArray = Array.isArray((empresa as any).responsavel_cpf) 
+                    ? (empresa as any).responsavel_cpf 
+                    : [];
 
                   return nomesArray.length > 0 ? (
                     <div className="space-y-1">
@@ -311,6 +306,17 @@ const EmpresaDetailDialog = ({
                     <p className="text-muted-foreground italic">Não informado</p>
                   );
                 })()}
+              </div>
+
+              {/* Responsável pelo Contato */}
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  Responsável (Contato)
+                </Label>
+                <p className="text-foreground">
+                  {empresa.nome_responsavel || <span className="text-muted-foreground italic">Não informado</span>}
+                </p>
               </div>
 
               <div className="space-y-2">
