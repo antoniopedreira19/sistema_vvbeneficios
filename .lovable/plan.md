@@ -1,155 +1,182 @@
 
+# Plano: Suporte a Múltiplas Empresas por Usuário Cliente
 
-# Plano: Gerar Adendo por Competência com Armazenamento no Supabase
+## Visão Geral
 
-## Resumo da Funcionalidade
+Este plano implementa a funcionalidade que permite um usuário cliente estar vinculado a múltiplas empresas/CNPJs. Após o login, o usuário seleciona qual empresa quer acessar e pode trocar a qualquer momento.
 
-A solicitação envolve três mudanças principais:
+## Fluxo do Usuário
 
-1. **Filtro por Competência**: Ao clicar em "Gerar Adendo", adicionar um seletor de competência (baseado nos lotes concluídos/faturados da empresa)
-2. **Gerar PDF e Salvar no Storage**: Em vez de apenas abrir para impressão, converter o HTML para PDF e salvar no Supabase Storage
-3. **Visualizar/Baixar na lista "Competências Enviadas"**: Mostrar botão de download/visualização do adendo salvo para cada competência
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           FLUXO DE LOGIN CLIENTE                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   Login → Primeiro Acesso?                                                   │
+│              │                                                               │
+│         ┌────┴────┐                                                          │
+│        SIM       NÃO                                                         │
+│         │         │                                                          │
+│         ▼         │                                                          │
+│   Troca Senha +   │                                                          │
+│   Completa Dados  │                                                          │
+│         │         │                                                          │
+│         ▼         ▼                                                          │
+│   Múltiplas Empresas?                                                        │
+│         │                                                                    │
+│    ┌────┴────┐                                                               │
+│   SIM       NÃO                                                              │
+│    │         │                                                               │
+│    ▼         │                                                               │
+│  Tela de     │                                                               │
+│  Seleção     │                                                               │
+│  de Empresa  │                                                               │
+│    │         │                                                               │
+│    ▼         ▼                                                               │
+│   Sistema Normal (Dashboard Cliente)                                         │
+│    │                                                                         │
+│    ▼                                                                         │
+│   Botão "Trocar Empresa" no Sidebar                                          │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## O Que Vai Mudar
+
+### 1. Banco de Dados
+- Nova tabela `user_empresas` para vincular usuários a múltiplas empresas
+- O campo `empresa_id` na tabela `profiles` continua existindo para a empresa "ativa" atual
+
+### 2. Tela do Admin
+- O formulário de criar/editar usuário permitirá selecionar múltiplas empresas
+- Exibição das empresas vinculadas na listagem de usuários
+
+### 3. Experiência do Cliente
+- Nova tela bonita para escolher empresa após login
+- Botão no sidebar para trocar de empresa
+- Sistema funciona normalmente após escolha
 
 ---
 
-## Fluxo Proposto
+## Detalhes Técnicos
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  EmpresaDetailDialog                                                │
-├─────────────────────────────────────────────────────────────────────┤
-│  1. Clique em "Gerar Adendo"                                        │
-│        ↓                                                            │
-│  2. Dialog abre com:                                                │
-│     • Seletor de Competência (lotes concluídos/faturados)           │
-│     • Número da Apólice                                             │
-│     • Datas de Vigência                                             │
-│        ↓                                                            │
-│  3. Clique em "Gerar e Salvar"                                      │
-│        ↓                                                            │
-│  4. Busca colaboradores_lote do lote selecionado (status aprovado)  │
-│        ↓                                                            │
-│  5. Gera HTML → Converte para PDF (via browser print-to-PDF ou      │
-│     biblioteca html2pdf/pdfmake)                                    │
-│        ↓                                                            │
-│  6. Upload do PDF para Supabase Storage (bucket: contratos)         │
-│        ↓                                                            │
-│  7. Salva URL no campo adendo_url da tabela lotes_mensais           │
-│        ↓                                                            │
-│  8. Na lista "Competências Enviadas", exibe ícone de download       │
-│     quando adendo_url estiver preenchido                            │
-└─────────────────────────────────────────────────────────────────────┘
-```
+### Fase 1: Banco de Dados
 
----
-
-## Alterações Técnicas
-
-### 1. Migração de Banco de Dados
-
-Adicionar coluna `adendo_url` na tabela `lotes_mensais` para armazenar o link do PDF gerado:
+#### Nova Tabela `user_empresas`
 
 ```sql
-ALTER TABLE lotes_mensais
-ADD COLUMN adendo_url TEXT;
+CREATE TABLE user_empresas (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  empresa_id uuid REFERENCES empresas(id) ON DELETE CASCADE NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, empresa_id)
+);
+
+-- Habilitar RLS
+ALTER TABLE user_empresas ENABLE ROW LEVEL SECURITY;
+
+-- Policies
+CREATE POLICY "Admin e Operacional podem gerenciar user_empresas"
+ON user_empresas FOR ALL TO authenticated
+USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'operacional'))
+WITH CHECK (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'operacional'));
+
+CREATE POLICY "Usuários podem ver suas empresas vinculadas"
+ON user_empresas FOR SELECT TO authenticated
+USING (user_id = auth.uid());
 ```
 
-### 2. Modificar `GerarAdendoBtn.tsx`
-
-**Mudanças:**
-- Receber lista de competências (lotes concluídos/faturados da empresa)
-- Adicionar `Select` para escolher a competência
-- Ao gerar:
-  - Buscar colaboradores do `colaboradores_lote` com `status_seguradora = 'aprovado'` do lote selecionado
-  - Gerar HTML do documento
-  - Converter para Blob PDF (usando técnica de print-to-PDF ou html2pdf)
-  - Fazer upload para Supabase Storage no bucket `contratos` com path: `adendos/{empresa_id}/{competencia}.pdf`
-  - Atualizar coluna `adendo_url` do lote
-  - Exibir sucesso
-
-**Nova interface de props:**
-```typescript
-interface GerarAdendoBtnProps {
-  empresaId: string;
-  lotes: Array<{ id: string; competencia: string; adendo_url?: string }>;
-  variant?: "default" | "outline" | "ghost";
-  onAdendoGerado?: () => void;
-}
+#### Migração de Dados Existentes
+```sql
+-- Copiar vínculos existentes de profiles.empresa_id para user_empresas
+INSERT INTO user_empresas (user_id, empresa_id)
+SELECT id, empresa_id FROM profiles 
+WHERE empresa_id IS NOT NULL
+ON CONFLICT DO NOTHING;
 ```
 
-### 3. Modificar `EmpresaDetailDialog.tsx`
+### Fase 2: Edge Function `create-user`
 
-**Mudanças:**
-- Buscar lotes com `status IN ('concluido', 'faturado')` para a empresa
-- Passar a lista de lotes para o `GerarAdendoBtn`
-- Na seção "Competências Enviadas":
-  - Exibir ícone de download/visualização quando `adendo_url` existir
-  - Adicionar handler para baixar o PDF
+Modificar para aceitar array de empresas:
+- Parâmetro `empresa_ids: string[]` (array de IDs)
+- Inserir múltiplos registros em `user_empresas`
+- Definir `profiles.empresa_id` como a primeira empresa do array (empresa inicial)
 
-**Atualização da interface `LoteCompetencia`:**
-```typescript
-interface LoteCompetencia {
-  id: string;           // Adicionar ID do lote
-  competencia: string;
-  status: string;
-  adendo_url?: string;  // Adicionar URL do adendo
-}
-```
+### Fase 3: Componentes Admin
 
-### 4. Conversão HTML → PDF
+#### `NovoUsuarioDialog.tsx`
+- Trocar Select simples por multi-select com checkboxes
+- Validar que cliente tem pelo menos 1 empresa selecionada
 
-Como a geração atual usa `window.print()`, para salvar como arquivo real temos duas opções:
+#### `EditarUsuarioDialog.tsx`
+- Carregar empresas vinculadas do usuário da tabela `user_empresas`
+- Permitir adicionar/remover empresas
+- Sincronizar alterações com `user_empresas`
 
-**Opção A - html2canvas + jsPDF** (mais simples, resultado visual)
-- Usar html2canvas para capturar o HTML renderizado
-- Converter para PDF com jsPDF
-- Instalar: `npm install html2canvas jspdf`
+### Fase 4: Seleção de Empresa (Nova Tela)
 
-**Opção B - Manter impressão + Upload manual**
-- Manter o fluxo atual de impressão
-- Adicionar botão separado para upload de PDF já salvo pelo usuário
+#### Novo Componente `EmpresaSelectorPage.tsx`
+Uma página com UI elegante para escolher empresa:
+- Cards grandes com nome e CNPJ de cada empresa
+- Efeito hover suave
+- Transição animada ao selecionar
+- Armazenar escolha em `sessionStorage` ou atualizar `profiles.empresa_id`
 
-**Recomendação:** Opção A é mais integrada e automática.
+### Fase 5: Fluxo de Login
+
+#### Modificar `Index.tsx`
+Após verificar primeiro login:
+1. Buscar empresas vinculadas do usuário em `user_empresas`
+2. Se só tem 1 empresa: ir direto para dashboard
+3. Se tem múltiplas: redirecionar para `/cliente/selecionar-empresa`
+
+### Fase 6: Botão de Troca no Sidebar
+
+#### Modificar `AppSidebar.tsx`
+- Adicionar botão "Trocar Empresa" para clientes com múltiplas empresas
+- Exibir nome da empresa atual no header
+- Ao clicar, redireciona para tela de seleção
+
+### Fase 7: Hook `useUserRole`
+
+Modificar para:
+- Expor lista de empresas vinculadas (`empresasVinculadas`)
+- Expor empresa ativa atual (`empresaAtiva`)
+- Função `setEmpresaAtiva(empresaId)` para trocar empresa
 
 ---
 
-## Resumo Visual Final
+## Arquivos a Criar/Modificar
 
-Na seção "Competências Enviadas" do diálogo:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  📅 COMPETÊNCIAS ENVIADAS                                       │
-├─────────────────────────────────────────────────────────────────┤
-│  ✅ Janeiro/2026        [Concluído]     📄 ⬇️                   │
-│  ✅ Dezembro/2025       [Faturado]      📄 ⬇️                   │
-│  ✅ Novembro/2025       [Faturado]      (sem adendo)            │
-└─────────────────────────────────────────────────────────────────┘
-        │                                    ↑
-        │                                    │
-        ↓                                    │
-   Clica em 📄 → abre PDF               Clica em ⬇️ → baixa PDF
-```
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `supabase/migrations/xxx.sql` | Criar | Tabela `user_empresas` + migração |
+| `src/pages/cliente/SelecionarEmpresa.tsx` | Criar | Tela de seleção de empresa |
+| `src/hooks/useUserRole.tsx` | Modificar | Adicionar suporte multi-empresa |
+| `src/components/admin/NovoUsuarioDialog.tsx` | Modificar | Multi-select de empresas |
+| `src/components/admin/EditarUsuarioDialog.tsx` | Modificar | Multi-select de empresas |
+| `src/components/admin/CriarUsuariosMassaDialog.tsx` | Modificar | Criar vinculos em `user_empresas` |
+| `supabase/functions/create-user/index.ts` | Modificar | Aceitar array de empresas |
+| `src/components/AppSidebar.tsx` | Modificar | Botão trocar empresa + nome atual |
+| `src/pages/Index.tsx` | Modificar | Lógica de redirecionamento |
+| `src/App.tsx` | Modificar | Adicionar rota `/cliente/selecionar-empresa` |
+| `src/integrations/supabase/types.ts` | Atualizar | Incluir tipos da nova tabela |
 
 ---
 
-## Arquivos a Modificar
+## Compatibilidade com Sistema Atual
 
-| Arquivo | Ação |
-|---------|------|
-| `package.json` | Adicionar dependências `html2canvas` e `jspdf` |
-| `src/components/shared/GerarAdendoBtn.tsx` | Refatorar para receber lotes, gerar PDF e upload |
-| `src/components/crm/EmpresaDetailDialog.tsx` | Passar lotes, mostrar ações de download |
-| Migração SQL | Adicionar coluna `adendo_url` em `lotes_mensais` |
+- Usuários com apenas 1 empresa vinculada funcionam exatamente como antes
+- O campo `profiles.empresa_id` continua sendo a empresa "ativa"
+- Todas as queries existentes que usam `profile.empresa_id` continuam funcionando
+- Não há breaking changes para usuários existentes
 
 ---
 
-## Dependências Novas
+## Estimativa de Complexidade
 
-```json
-{
-  "html2canvas": "^1.4.1",
-  "jspdf": "^2.5.1"
-}
-```
+**Nível: Médio**
+
+O sistema atual já tem uma boa arquitetura. As mudanças são incrementais e não destrutivas. A maior parte do trabalho está na UI do multi-select e na nova tela de seleção de empresa.
 
