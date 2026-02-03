@@ -2,10 +2,8 @@ import { useState, useEffect } from "react";
 import { Check, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 
 interface Empresa {
@@ -120,23 +118,33 @@ export function EmpresaMultiSelect({
               {filteredEmpresas.map((empresa) => {
                 const isSelected = selectedIds.includes(empresa.id);
                 return (
-                  <button
+                  <div
                     key={empresa.id}
-                    type="button"
+                    role="button"
+                    tabIndex={disabled ? -1 : 0}
                     onClick={() => handleToggle(empresa.id)}
-                    disabled={disabled}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleToggle(empresa.id);
+                      }
+                    }}
                     className={cn(
-                      "w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors",
+                      "w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors cursor-pointer",
                       isSelected 
                         ? "bg-primary/10 border border-primary/30" 
-                        : "hover:bg-muted/50",
-                      disabled && "opacity-50 cursor-not-allowed"
+                        : "hover:bg-muted/50 border border-transparent",
+                      disabled && "opacity-50 cursor-not-allowed pointer-events-none"
                     )}
                   >
-                    <Checkbox 
-                      checked={isSelected} 
-                      className="pointer-events-none"
-                    />
+                    <div className={cn(
+                      "h-4 w-4 shrink-0 rounded-sm border flex items-center justify-center",
+                      isSelected 
+                        ? "bg-primary border-primary text-primary-foreground" 
+                        : "border-input"
+                    )}>
+                      {isSelected && <Check className="h-3 w-3" />}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">
                         {empresa.nome}
@@ -145,10 +153,7 @@ export function EmpresaMultiSelect({
                         {empresa.cnpj?.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}
                       </div>
                     </div>
-                    {isSelected && (
-                      <Check className="h-4 w-4 text-primary shrink-0" />
-                    )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
