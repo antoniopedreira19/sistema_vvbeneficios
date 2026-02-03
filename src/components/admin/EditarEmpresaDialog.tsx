@@ -69,13 +69,21 @@ export function EditarEmpresaDialog({
       setCnpj(formatCNPJ(empresa.cnpj || ""));
       setEndereco(empresa.endereco || "");
 
-      // Tratamento para Responsáveis (JSONB arrays)
-      const nomesArray = Array.isArray(empresa.responsavel_nome) 
-        ? empresa.responsavel_nome 
-        : empresa.responsavel_nome ? [empresa.responsavel_nome] : [];
-      const cpfsArray = Array.isArray(empresa.responsavel_cpf) 
-        ? empresa.responsavel_cpf 
-        : empresa.responsavel_cpf ? [empresa.responsavel_cpf] : [];
+      // Tratamento para Responsáveis (JSONB arrays) - com fallback para campo legado
+      let nomesArray: string[] = [];
+      let cpfsArray: string[] = [];
+      
+      // Prioriza os campos novos (responsavel_nome/cpf)
+      if (Array.isArray(empresa.responsavel_nome) && empresa.responsavel_nome.length > 0) {
+        nomesArray = empresa.responsavel_nome;
+        cpfsArray = Array.isArray(empresa.responsavel_cpf) ? empresa.responsavel_cpf : [];
+      } 
+      // Fallback para o campo legado (nome_responsavel)
+      else if (empresa.nome_responsavel) {
+        nomesArray = Array.isArray(empresa.nome_responsavel) 
+          ? empresa.nome_responsavel 
+          : [empresa.nome_responsavel];
+      }
       
       const responsaveisData = nomesArray.map((nome: string, idx: number) => ({
         nome: nome || "",
@@ -199,6 +207,7 @@ export function EditarEmpresaDialog({
           nome,
           cnpj: cnpjLimpo,
           endereco: endereco || null,
+          nome_responsavel: null, // Limpa o campo legado
           responsavel_nome: respNomePayload as any,
           responsavel_cpf: respCpfPayload as any,
           email_contato: emailContato,
