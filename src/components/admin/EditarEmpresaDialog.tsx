@@ -41,6 +41,7 @@ export function EditarEmpresaDialog({
   const [cnpj, setCnpj] = useState("");
   const [endereco, setEndereco] = useState("");
   const [responsaveis, setResponsaveis] = useState<Array<{ nome: string; cpf: string }>>([]);
+  const [responsavelContato, setResponsavelContato] = useState(""); // nome_responsavel
   const [emailContato, setEmailContato] = useState("");
   const [telefoneContato, setTelefoneContato] = useState("");
   const [status, setStatus] = useState("");
@@ -69,20 +70,13 @@ export function EditarEmpresaDialog({
       setCnpj(formatCNPJ(empresa.cnpj || ""));
       setEndereco(empresa.endereco || "");
 
-      // Tratamento para Responsáveis (JSONB arrays) - com fallback para campo legado
+      // Responsáveis pela Assinatura (responsavel_nome/cpf)
       let nomesArray: string[] = [];
       let cpfsArray: string[] = [];
       
-      // Prioriza os campos novos (responsavel_nome/cpf)
       if (Array.isArray(empresa.responsavel_nome) && empresa.responsavel_nome.length > 0) {
         nomesArray = empresa.responsavel_nome;
         cpfsArray = Array.isArray(empresa.responsavel_cpf) ? empresa.responsavel_cpf : [];
-      } 
-      // Fallback para o campo legado (nome_responsavel)
-      else if (empresa.nome_responsavel) {
-        nomesArray = Array.isArray(empresa.nome_responsavel) 
-          ? empresa.nome_responsavel 
-          : [empresa.nome_responsavel];
       }
       
       const responsaveisData = nomesArray.map((nome: string, idx: number) => ({
@@ -90,6 +84,9 @@ export function EditarEmpresaDialog({
         cpf: formatCPF(cpfsArray[idx] || "")
       }));
       setResponsaveis(responsaveisData.length > 0 ? responsaveisData : [{ nome: "", cpf: "" }]);
+
+      // Responsável pelo Contato (nome_responsavel) - campo separado
+      setResponsavelContato(empresa.nome_responsavel || "");
 
       setEmailContato(empresa.email_contato || "");
       setTelefoneContato(formatTelefone(empresa.telefone_contato || ""));
@@ -207,8 +204,8 @@ export function EditarEmpresaDialog({
           nome,
           cnpj: cnpjLimpo,
           endereco: endereco || null,
-          nome_responsavel: null, // Limpa o campo legado
-          responsavel_nome: respNomePayload as any,
+          nome_responsavel: responsavelContato.trim() || null, // Responsável pelo Contato
+          responsavel_nome: respNomePayload as any, // Responsáveis pela Assinatura
           responsavel_cpf: respCpfPayload as any,
           email_contato: emailContato,
           telefone_contato: telefoneContato,
@@ -225,6 +222,7 @@ export function EditarEmpresaDialog({
         nome,
         cnpj: cnpjLimpo,
         endereco: endereco || null,
+        nome_responsavel: responsavelContato.trim() || null,
         responsavel_nome: respNomePayload,
         responsavel_cpf: respCpfPayload,
         email_contato: emailContato,
@@ -262,7 +260,7 @@ export function EditarEmpresaDialog({
         nome,
         cnpj: cnpjLimpo,
         endereco: endereco || null,
-        nome_responsavel: null, // Limpa campo legado
+        nome_responsavel: responsavelContato.trim() || null,
         responsavel_nome: respNomePayload,
         responsavel_cpf: respCpfPayload,
         email_contato: emailContato,
@@ -526,6 +524,14 @@ export function EditarEmpresaDialog({
             <div className="space-y-4">
               <h4 className="text-sm font-medium border-b pb-1 text-slate-500">Contato & Status</h4>
               <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 space-y-1">
+                  <Label>Responsável Contato</Label>
+                  <Input 
+                    value={responsavelContato} 
+                    onChange={(e) => setResponsavelContato(e.target.value)} 
+                    placeholder="Nome do responsável pelo contato"
+                  />
+                </div>
                 <div className="space-y-1">
                   <Label>E-mail Principal</Label>
                   <Input value={emailContato} onChange={(e) => setEmailContato(e.target.value)} type="email" />
