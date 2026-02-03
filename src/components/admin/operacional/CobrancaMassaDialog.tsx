@@ -59,6 +59,7 @@ interface EmpresaPendente {
   cnpj: string;
   email: string;
   responsavel: string;
+  emails_contato?: string[] | null;
 }
 
 export function CobrancaMassaDialog() {
@@ -132,6 +133,27 @@ export function CobrancaMassaDialog() {
 
   const empresasSelecionadas = pendentes.filter((e) => selectedIds.has(e.id));
 
+  // Função para consolidar todos os emails de uma empresa
+  const getAllEmails = (emp: EmpresaPendente): string[] => {
+    const emails: string[] = [];
+    
+    // Adiciona email_contato principal
+    if (emp.email) {
+      emails.push(emp.email);
+    }
+    
+    // Adiciona emails_contato adicionais (se existirem)
+    if (emp.emails_contato && Array.isArray(emp.emails_contato)) {
+      emp.emails_contato.forEach((e) => {
+        if (e && !emails.includes(e)) {
+          emails.push(e);
+        }
+      });
+    }
+    
+    return emails;
+  };
+
   // 3. Ação: Chamar edge function para enviar via n8n
   const handleDispararCobranca = async (tipo: "primeira" | "proximas") => {
     if (empresasSelecionadas.length === 0) {
@@ -146,7 +168,7 @@ export function CobrancaMassaDialog() {
     try {
       const empresasPayload = empresasSelecionadas.map((emp) => ({
         nome: emp.nome,
-        email: emp.email,
+        emails: getAllEmails(emp),
       }));
 
       // Webhook diferente para próximas cobranças

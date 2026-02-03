@@ -41,13 +41,13 @@ serve(async (req) => {
       );
     }
 
-    // Payload simplificado: nome, email e URL do template
+    // Payload com todos os emails de contato
     const payload = {
       competencia,
       template_url: TEMPLATE_URL,
-      empresas: empresas.map((emp: { nome: string; email: string }) => ({
+      empresas: empresas.map((emp: { nome: string; emails: string[] }) => ({
         nome: emp.nome,
-        email: emp.email,
+        emails: emp.emails,
       })),
     };
 
