@@ -21,6 +21,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+interface EmpresaVinculada {
+  id: string;
+  nome: string;
+}
+
 interface Usuario {
   id: string;
   nome: string;
@@ -34,6 +39,7 @@ interface Usuario {
     role: string;
   }[];
   role: string | null;
+  empresasVinculadas?: EmpresaVinculada[];
 }
 
 interface Empresa {
@@ -69,13 +75,33 @@ const Usuarios = () => {
     // Buscar roles separadamente
     const { data: rolesData } = await supabase.from("user_roles").select("user_id, role");
 
+    // Buscar user_empresas para todos os usuários (empresas vinculadas)
+    const { data: userEmpresasData } = await supabase
+      .from("user_empresas")
+      .select(`
+        user_id,
+        empresas:empresa_id (
+          id,
+          nome
+        )
+      `);
+
     // Combinar os dados
     const usuariosComRoles =
-      profilesData?.map((profile) => ({
-        ...profile,
-        user_roles: rolesData?.filter((role) => role.user_id === profile.id) || [],
-        role: rolesData?.find((role) => role.user_id === profile.id)?.role || null,
-      })) || [];
+      profilesData?.map((profile) => {
+        // Encontrar empresas vinculadas do usuário
+        const empresasDoUsuario = (userEmpresasData || [])
+          .filter((ue: any) => ue.user_id === profile.id)
+          .map((ue: any) => ue.empresas)
+          .filter(Boolean);
+
+        return {
+          ...profile,
+          user_roles: rolesData?.filter((role) => role.user_id === profile.id) || [],
+          role: rolesData?.find((role) => role.user_id === profile.id)?.role || null,
+          empresasVinculadas: empresasDoUsuario,
+        };
+      }) || [];
 
     setUsuarios(usuariosComRoles as any);
     setLoading(false);
@@ -325,7 +351,24 @@ const Usuarios = () => {
                             : "Cliente"}
                         </Badge>
                       </TableCell>
-                      <TableCell>{usuario.empresas?.nome || "-"}</TableCell>
+                      <TableCell>
+                        {role === "cliente" && usuario.empresasVinculadas && usuario.empresasVinculadas.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {usuario.empresasVinculadas.map((emp, idx) => (
+                              <Badge 
+                                key={emp.id} 
+                                variant="outline" 
+                                className="text-xs"
+                                title={emp.nome}
+                              >
+                                {emp.nome.length > 20 ? emp.nome.slice(0, 20) + '...' : emp.nome}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          usuario.empresas?.nome || "-"
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button variant="ghost" size="icon" onClick={() => setEditingUsuario(usuario)}>
