@@ -130,15 +130,15 @@ export const NovoUsuarioDialog = ({ onSuccess }: NovoUsuarioDialogProps) => {
           Novo Usuário
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Novo Usuário</DialogTitle>
           <DialogDescription>
             Cadastre um novo usuário no sistema
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto flex-1 pr-1">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto flex-1 px-1">
             <FormField
               control={form.control}
               name="nome"
