@@ -28,7 +28,7 @@ serve(async (req) => {
       )
     }
 
-    const { email, password, nome, empresa_id, role } = body
+    const { email, password, nome, empresa_id, empresa_ids, role } = body
 
     // Validate input
     if (!email || !password || !nome || !role) {
@@ -47,10 +47,15 @@ serve(async (req) => {
       )
     }
 
-    if (role === 'cliente' && !empresa_id) {
-      console.error('Missing empresa_id for cliente role')
+    // Para clientes: aceitar array de empresas (empresa_ids) ou empresa única (empresa_id) para retrocompatibilidade
+    const empresaIdsArray: string[] = role === 'cliente' 
+      ? (Array.isArray(empresa_ids) ? empresa_ids : (empresa_id ? [empresa_id] : []))
+      : [];
+
+    if (role === 'cliente' && empresaIdsArray.length === 0) {
+      console.error('Missing empresa_ids for cliente role')
       return new Response(
-        JSON.stringify({ error: 'Empresa é obrigatória para usuários cliente' }),
+        JSON.stringify({ error: 'Pelo menos uma empresa é obrigatória para usuários cliente' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
@@ -140,7 +145,7 @@ serve(async (req) => {
 
     console.log('User created in auth, id:', authData.user.id)
 
-    // Update or insert profile (upsert)
+    // Update or insert profile (upsert) - empresa_id é a primeira empresa do array (empresa ativa inicial)
     console.log('Upserting profile...')
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
@@ -148,7 +153,7 @@ serve(async (req) => {
         id: authData.user.id,
         nome,
         email,
-        empresa_id: role === 'cliente' ? empresa_id : null
+        empresa_id: role === 'cliente' && empresaIdsArray.length > 0 ? empresaIdsArray[0] : null
       }, {
         onConflict: 'id'
       })
@@ -159,6 +164,26 @@ serve(async (req) => {
     }
 
     console.log('Profile created')
+
+    // Inserir vínculos em user_empresas para clientes
+    if (role === 'cliente' && empresaIdsArray.length > 0) {
+      console.log('Inserting user_empresas links for', empresaIdsArray.length, 'empresas...')
+      const userEmpresasInserts = empresaIdsArray.map(empId => ({
+        user_id: authData.user.id,
+        empresa_id: empId
+      }))
+
+      const { error: userEmpresasError } = await supabaseAdmin
+        .from('user_empresas')
+        .upsert(userEmpresasInserts, { onConflict: 'user_id,empresa_id' })
+
+      if (userEmpresasError) {
+        console.error('user_empresas error:', userEmpresasError)
+        throw new Error(`Failed to create user_empresas links: ${userEmpresasError.message}`)
+      }
+
+      console.log('user_empresas links created successfully')
+    }
 
     // Insert into user_roles (upsert to avoid conflicts)
     console.log('Upserting user role...')

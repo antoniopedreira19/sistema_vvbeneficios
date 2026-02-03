@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { EmpresaMultiSelect } from "./EmpresaMultiSelect";
 
 const usuarioSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório").max(200, "Nome muito longo"),
@@ -36,7 +37,7 @@ const usuarioSchema = z.object({
   role: z.enum(["admin", "operacional", "cliente", "financeiro"], {
     required_error: "Selecione um tipo de usuário",
   }),
-  empresa_id: z.string().optional(),
+  empresa_ids: z.array(z.string()).default([]),
 });
 
 type UsuarioFormData = z.infer<typeof usuarioSchema>;
@@ -50,11 +51,6 @@ interface Usuario {
   role: string | null;
 }
 
-interface Empresa {
-  id: string;
-  nome: string;
-}
-
 interface EditarUsuarioDialogProps {
   usuario: Usuario | null;
   open: boolean;
@@ -64,7 +60,7 @@ interface EditarUsuarioDialogProps {
 
 export const EditarUsuarioDialog = ({ usuario, open, onOpenChange, onSuccess }: EditarUsuarioDialogProps) => {
   const [loading, setLoading] = useState(false);
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [loadingEmpresas, setLoadingEmpresas] = useState(false);
   const { isOperacional } = useUserRole();
 
   const form = useForm<UsuarioFormData>({
@@ -73,52 +69,76 @@ export const EditarUsuarioDialog = ({ usuario, open, onOpenChange, onSuccess }: 
       nome: "",
       celular: "",
       role: "cliente",
-      empresa_id: "",
+      empresa_ids: [],
     },
   });
 
   const role = form.watch("role");
 
+  // Carregar dados do usuário e empresas vinculadas
   useEffect(() => {
-    if (usuario && open) {
-      form.reset({
-        nome: usuario.nome,
-        celular: usuario.celular || "",
-        role: (usuario.role as "admin" | "operacional" | "cliente" | "financeiro") || "cliente",
-        empresa_id: usuario.empresa_id || "",
-      });
-    }
-  }, [usuario, open, form]);
+    const loadUserData = async () => {
+      if (!usuario || !open) return;
 
-  useEffect(() => {
-    const fetchEmpresas = async () => {
-      const { data } = await supabase
-        .from("empresas")
-        .select("id, nome")
-        .order("nome");
-      
-      if (data) {
-        setEmpresas(data);
+      setLoadingEmpresas(true);
+      try {
+        // Carregar empresas vinculadas da tabela user_empresas
+        const { data: userEmpresas, error } = await supabase
+          .from("user_empresas")
+          .select("empresa_id")
+          .eq("user_id", usuario.id);
+
+        const empresaIds = error ? [] : (userEmpresas || []).map(ue => ue.empresa_id);
+
+        form.reset({
+          nome: usuario.nome,
+          celular: usuario.celular || "",
+          role: (usuario.role as "admin" | "operacional" | "cliente" | "financeiro") || "cliente",
+          empresa_ids: empresaIds,
+        });
+      } catch (error) {
+        console.error("Error loading user empresas:", error);
+        form.reset({
+          nome: usuario.nome,
+          celular: usuario.celular || "",
+          role: (usuario.role as "admin" | "operacional" | "cliente" | "financeiro") || "cliente",
+          empresa_ids: usuario.empresa_id ? [usuario.empresa_id] : [],
+        });
+      } finally {
+        setLoadingEmpresas(false);
       }
     };
 
-    if (open) {
-      fetchEmpresas();
+    loadUserData();
+  }, [usuario, open, form]);
+
+  // Reset empresa_ids when role changes away from cliente
+  useEffect(() => {
+    if (role !== "cliente") {
+      form.setValue("empresa_ids", []);
     }
-  }, [open]);
+  }, [role, form]);
 
   const onSubmit = async (data: UsuarioFormData) => {
     if (!usuario) return;
+
+    // Validar que cliente tem pelo menos 1 empresa
+    if (data.role === 'cliente' && data.empresa_ids.length === 0) {
+      toast.error("Usuários cliente precisam ter pelo menos uma empresa vinculada.");
+      return;
+    }
     
     setLoading(true);
     try {
-      // Update profile
+      // Update profile - empresa_id é a primeira empresa do array
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
           nome: data.nome,
           celular: data.celular || null,
-          empresa_id: data.role === 'cliente' ? data.empresa_id : null,
+          empresa_id: data.role === 'cliente' && data.empresa_ids.length > 0 
+            ? data.empresa_ids[0] 
+            : null,
         })
         .eq("id", usuario.id);
 
@@ -136,7 +156,40 @@ export const EditarUsuarioDialog = ({ usuario, open, onOpenChange, onSuccess }: 
 
       if (roleError) throw roleError;
 
-      toast.success("Usuário atualizado com sucesso!");
+      // Atualizar user_empresas para clientes
+      if (data.role === 'cliente') {
+        // Remover vínculos antigos
+        await supabase
+          .from("user_empresas")
+          .delete()
+          .eq("user_id", usuario.id);
+
+        // Inserir novos vínculos
+        if (data.empresa_ids.length > 0) {
+          const inserts = data.empresa_ids.map(empresaId => ({
+            user_id: usuario.id,
+            empresa_id: empresaId
+          }));
+
+          const { error: userEmpresasError } = await supabase
+            .from("user_empresas")
+            .insert(inserts);
+
+          if (userEmpresasError) throw userEmpresasError;
+        }
+      } else {
+        // Se não for mais cliente, remover vínculos
+        await supabase
+          .from("user_empresas")
+          .delete()
+          .eq("user_id", usuario.id);
+      }
+
+      toast.success(
+        data.role === 'cliente' && data.empresa_ids.length > 1
+          ? `Usuário atualizado! Vinculado a ${data.empresa_ids.length} empresas.`
+          : "Usuário atualizado com sucesso!"
+      );
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
@@ -150,7 +203,7 @@ export const EditarUsuarioDialog = ({ usuario, open, onOpenChange, onSuccess }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>Editar Usuário</DialogTitle>
           <DialogDescription>
@@ -211,24 +264,15 @@ export const EditarUsuarioDialog = ({ usuario, open, onOpenChange, onSuccess }: 
             {role === "cliente" && (
               <FormField
                 control={form.control}
-                name="empresa_id"
+                name="empresa_ids"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Empresa</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a empresa" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {empresas.map((empresa) => (
-                          <SelectItem key={empresa.id} value={empresa.id}>
-                            {empresa.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <EmpresaMultiSelect
+                      selectedIds={field.value}
+                      onChange={field.onChange}
+                      label="Empresas Vinculadas"
+                      disabled={loadingEmpresas}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -243,7 +287,7 @@ export const EditarUsuarioDialog = ({ usuario, open, onOpenChange, onSuccess }: 
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" disabled={loading || loadingEmpresas}>
                 {loading ? "Salvando..." : "Salvar"}
               </Button>
             </div>

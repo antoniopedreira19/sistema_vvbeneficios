@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { EmpresaMultiSelect } from "./EmpresaMultiSelect";
 
 const usuarioSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório").max(200, "Nome muito longo"),
@@ -39,7 +40,7 @@ const usuarioSchema = z.object({
   role: z.enum(["admin", "operacional", "cliente", "financeiro"], {
     required_error: "Selecione um tipo de usuário",
   }),
-  empresa_id: z.string().optional(),
+  empresa_ids: z.array(z.string()).default([]),
 });
 
 type UsuarioFormData = z.infer<typeof usuarioSchema>;
@@ -48,15 +49,9 @@ interface NovoUsuarioDialogProps {
   onSuccess?: () => void;
 }
 
-interface Empresa {
-  id: string;
-  nome: string;
-}
-
 export const NovoUsuarioDialog = ({ onSuccess }: NovoUsuarioDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const { toast } = useToast();
   const { isOperacional } = useUserRole();
 
@@ -67,30 +62,31 @@ export const NovoUsuarioDialog = ({ onSuccess }: NovoUsuarioDialogProps) => {
       email: "",
       password: "",
       role: "cliente",
-      empresa_id: "",
+      empresa_ids: [],
     },
   });
 
   const role = form.watch("role");
+  const empresaIds = form.watch("empresa_ids");
 
+  // Reset empresa_ids when role changes away from cliente
   useEffect(() => {
-    const fetchEmpresas = async () => {
-      const { data } = await supabase
-        .from("empresas")
-        .select("id, nome")
-        .order("nome");
-      
-      if (data) {
-        setEmpresas(data);
-      }
-    };
-
-    if (open) {
-      fetchEmpresas();
+    if (role !== "cliente") {
+      form.setValue("empresa_ids", []);
     }
-  }, [open]);
+  }, [role, form]);
 
   const onSubmit = async (data: UsuarioFormData) => {
+    // Validar que cliente tem pelo menos 1 empresa
+    if (data.role === 'cliente' && data.empresa_ids.length === 0) {
+      toast({
+        title: "Selecione uma empresa",
+        description: "Usuários cliente precisam ter pelo menos uma empresa vinculada.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const { data: result, error } = await supabase.functions.invoke('create-user', {
@@ -99,7 +95,7 @@ export const NovoUsuarioDialog = ({ onSuccess }: NovoUsuarioDialogProps) => {
           password: data.password,
           nome: data.nome,
           role: data.role,
-          empresa_id: data.role === 'cliente' ? data.empresa_id : null,
+          empresa_ids: data.role === 'cliente' ? data.empresa_ids : null,
         },
       });
 
@@ -107,7 +103,9 @@ export const NovoUsuarioDialog = ({ onSuccess }: NovoUsuarioDialogProps) => {
 
       toast({
         title: "Usuário cadastrado!",
-        description: "O usuário foi cadastrado com sucesso.",
+        description: data.role === 'cliente' && data.empresa_ids.length > 1
+          ? `O usuário foi vinculado a ${data.empresa_ids.length} empresas.`
+          : "O usuário foi cadastrado com sucesso.",
       });
 
       form.reset();
@@ -132,7 +130,7 @@ export const NovoUsuarioDialog = ({ onSuccess }: NovoUsuarioDialogProps) => {
           Novo Usuário
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>Novo Usuário</DialogTitle>
           <DialogDescription>
@@ -206,24 +204,14 @@ export const NovoUsuarioDialog = ({ onSuccess }: NovoUsuarioDialogProps) => {
             {role === "cliente" && (
               <FormField
                 control={form.control}
-                name="empresa_id"
+                name="empresa_ids"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Empresa</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a empresa" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {empresas.map((empresa) => (
-                          <SelectItem key={empresa.id} value={empresa.id}>
-                            {empresa.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <EmpresaMultiSelect
+                      selectedIds={field.value}
+                      onChange={field.onChange}
+                      label="Empresas Vinculadas"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
