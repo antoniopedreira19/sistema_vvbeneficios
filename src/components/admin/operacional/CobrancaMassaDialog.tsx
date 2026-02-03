@@ -19,8 +19,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { MailWarning, Loader2, Send, Building2, Mail, History, Clock } from "lucide-react";
+import { MailWarning, Loader2, Send, Building2, Mail, History, Clock, Search } from "lucide-react";
 import { formatCNPJ } from "@/lib/validators";
+import { Input } from "@/components/ui/input";
 
 // Gera competência atual no formato "Mês/Ano"
 const getCompetenciaAtual = () => {
@@ -68,6 +69,7 @@ export function CobrancaMassaDialog() {
   const [disparando, setDisparando] = useState(false);
   const [activeTab, setActiveTab] = useState("disparar");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState("");
   const queryClient = useQueryClient();
 
   const competencias = gerarCompetencias();
@@ -89,9 +91,10 @@ export function CobrancaMassaDialog() {
     },
   });
 
-  // Reset seleção quando muda competência ou fecha dialog
+  // Reset seleção e busca quando muda competência ou fecha dialog
   useEffect(() => {
     setSelectedIds(new Set());
+    setSearchTerm("");
   }, [competencia, open]);
 
   // 2. Busca histórico de cobranças
@@ -130,6 +133,11 @@ export function CobrancaMassaDialog() {
       setSelectedIds(new Set(pendentes.map((e) => e.id)));
     }
   };
+
+  // Filtra e ordena empresas
+  const empresasFiltradas = pendentes
+    .filter((e) => e.nome.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
   const empresasSelecionadas = pendentes.filter((e) => selectedIds.has(e.id));
 
@@ -198,8 +206,30 @@ export function CobrancaMassaDialog() {
     }
   };
 
-  const allSelected = pendentes.length > 0 && selectedIds.size === pendentes.length;
-  const someSelected = selectedIds.size > 0 && selectedIds.size < pendentes.length;
+  // Toggle all filtrados
+  const handleToggleAllFiltered = () => {
+    const filteredIds = empresasFiltradas.map((e) => e.id);
+    const allFilteredSelected = filteredIds.every((id) => selectedIds.has(id));
+    
+    if (allFilteredSelected) {
+      // Desseleciona apenas os filtrados
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      // Seleciona todos os filtrados
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const allFilteredSelected = empresasFiltradas.length > 0 && empresasFiltradas.every((e) => selectedIds.has(e.id));
+  const someFilteredSelected = empresasFiltradas.some((e) => selectedIds.has(e.id)) && !allFilteredSelected;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -267,17 +297,27 @@ export function CobrancaMassaDialog() {
                 </div>
               ) : (
                 <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar empresa..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="select-all"
-                        checked={allSelected}
-                        onCheckedChange={handleToggleAll}
-                        className={someSelected ? "data-[state=checked]:bg-primary" : ""}
-                        {...(someSelected ? { "data-state": "indeterminate" } : {})}
+                        checked={allFilteredSelected}
+                        onCheckedChange={handleToggleAllFiltered}
+                        className={someFilteredSelected ? "data-[state=checked]:bg-primary" : ""}
+                        {...(someFilteredSelected ? { "data-state": "indeterminate" } : {})}
                       />
                       <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-                        Empresas Pendentes
+                        {searchTerm ? `Resultados (${empresasFiltradas.length})` : "Empresas Pendentes"}
                       </Label>
                     </div>
                     <div className="flex items-center gap-2">
@@ -294,7 +334,7 @@ export function CobrancaMassaDialog() {
                   
                   <ScrollArea className="h-[200px] pr-3">
                     <div className="space-y-2">
-                      {pendentes.map((emp) => (
+                      {empresasFiltradas.map((emp) => (
                         <div
                           key={emp.id}
                           className={`bg-background p-3 rounded-md border flex items-start gap-3 cursor-pointer transition-colors ${
