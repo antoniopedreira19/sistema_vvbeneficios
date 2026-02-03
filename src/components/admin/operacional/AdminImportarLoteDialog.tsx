@@ -195,24 +195,34 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
   // Gera lista de competências (últimos 2 meses + próximos 6 meses)
   const gerarCompetencias = () => {
     const meses = [
-      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro",
     ];
     const hoje = new Date();
     const competencias: string[] = [];
-    
+
     // Últimos 2 meses
-    for (let i = 2; i >= 1; i--) {
+    for (let i = 4; i >= 1; i--) {
       const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
       competencias.push(`${meses[d.getMonth()]}/${d.getFullYear()}`);
     }
-    
+
     // Mês atual + próximos 6 meses
     for (let i = 0; i <= 6; i++) {
       const d = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
       competencias.push(`${meses[d.getMonth()]}/${d.getFullYear()}`);
     }
-    
+
     return competencias;
   };
 
@@ -229,8 +239,18 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
 
       // Define competência atual como padrão
       const meses = [
-        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+        "Janeiro",
+        "Fevereiro",
+        "Março",
+        "Abril",
+        "Maio",
+        "Junho",
+        "Julho",
+        "Agosto",
+        "Setembro",
+        "Outubro",
+        "Novembro",
+        "Dezembro",
       ];
       const hoje = new Date();
       setCompetencia(`${meses[hoje.getMonth()]}/${hoje.getFullYear()}`);
@@ -475,12 +495,12 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
       if (loteExistente) {
         // Já existe um lote com MESMA empresa + obra + competência - SUBSTITUIR
         loteIdCriado = loteExistente.id;
-        
+
         toast.info(`Substituindo lote existente de ${competencia}...`);
-        
+
         // Deleta colaboradores_lote antigos primeiro
         await supabase.from("colaboradores_lote").delete().eq("lote_id", loteIdCriado);
-        
+
         // Reseta completamente o lote para o estado inicial (substituição completa)
         await supabase
           .from("lotes_mensais")
@@ -503,7 +523,7 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
       } else {
         // NÃO existe lote com essa competência - CRIAR NOVO
         toast.info(`Criando novo lote para ${competencia}...`);
-        
+
         const { data: novoLote, error: createError } = await supabase
           .from("lotes_mensais")
           .insert({
@@ -578,9 +598,7 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
       }
 
       // Marcar colaboradores que NÃO estão na lista como "desligado" (em vez de deletar)
-      const idsParaDesligar = (colaboradoresAtuais || [])
-        .filter((c) => !cpfsNaLista.has(c.cpf))
-        .map((c) => c.id);
+      const idsParaDesligar = (colaboradoresAtuais || []).filter((c) => !cpfsNaLista.has(c.cpf)).map((c) => c.id);
 
       if (idsParaDesligar.length > 0) {
         for (let i = 0; i < idsParaDesligar.length; i += BATCH_SIZE) {
