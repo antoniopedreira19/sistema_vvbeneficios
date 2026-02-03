@@ -252,14 +252,23 @@ export function EditarEmpresaDialog({
         ? validResponsaveis.map(r => r.nome.trim()).filter(n => n !== "")
         : null;
       
+      const validEmails = emails.filter((e) => e.trim() !== "");
+      const validTelefones = telefones.filter((t) => t.trim() !== "");
+      const respCpfPayload = validResponsaveis.length > 0 
+        ? validResponsaveis.map(r => r.cpf.replace(/\D/g, "")).filter(c => c !== "")
+        : null;
+
       const optimisticUpdate = {
         nome,
         cnpj: cnpjLimpo,
         endereco: endereco || null,
-        nome_responsavel: respNomePayload?.[0] || null,
+        nome_responsavel: null, // Limpa campo legado
         responsavel_nome: respNomePayload,
+        responsavel_cpf: respCpfPayload,
         email_contato: emailContato,
         telefone_contato: telefoneContato,
+        emails_contato: validEmails,
+        telefones_contato: validTelefones,
         status,
         implantada,
       };

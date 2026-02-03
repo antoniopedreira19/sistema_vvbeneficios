@@ -146,7 +146,23 @@ const EmpresaDetailDialog = ({
     if (!confirm(`Tem certeza que deseja excluir a empresa "${empresa.nome}"? Esta ação não pode ser desfeita.`))
       return;
 
+    // Fechar o modal imediatamente (optimistic)
+    onOpenChange(false);
     setDeleting(true);
+
+    // Snapshots para rollback
+    const previousAtivas = queryClient.getQueryData<EmpresaCRM[]>(["empresas-ativas"]);
+    const previousInativas = queryClient.getQueryData<EmpresaCRM[]>(["empresas-inativas"]);
+    const previousCrm = queryClient.getQueryData<EmpresaCRM[]>(["crm-empresas"]);
+
+    // Update otimista - remover de todas as listas
+    const removeFromList = (old: EmpresaCRM[] | undefined) => 
+      old?.filter(e => e.id !== empresa.id) || [];
+    
+    queryClient.setQueryData(["empresas-ativas"], removeFromList);
+    queryClient.setQueryData(["empresas-inativas"], removeFromList);
+    queryClient.setQueryData(["crm-empresas"], removeFromList);
+
     try {
       if (empresa.contrato_url?.includes("supabase.co/storage")) {
         const path = empresa.contrato_url.split("/contratos/").pop();
@@ -158,17 +174,20 @@ const EmpresaDetailDialog = ({
       const { error } = await supabase.from("empresas").delete().eq("id", empresa.id);
       if (error) throw error;
 
-      queryClient.invalidateQueries({ queryKey: ["empresas-ativas"] });
-      queryClient.invalidateQueries({ queryKey: ["empresas-inativas"] });
-      queryClient.invalidateQueries({ queryKey: ["crm-empresas"] });
-
       toast({ title: "Empresa excluída", description: "A empresa foi removida com sucesso." });
-      onOpenChange(false);
     } catch (error: any) {
       console.error(error);
+      // Rollback em caso de erro
+      if (previousAtivas) queryClient.setQueryData(["empresas-ativas"], previousAtivas);
+      if (previousInativas) queryClient.setQueryData(["empresas-inativas"], previousInativas);
+      if (previousCrm) queryClient.setQueryData(["crm-empresas"], previousCrm);
       toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
     } finally {
       setDeleting(false);
+      // Sincronizar com servidor
+      queryClient.invalidateQueries({ queryKey: ["empresas-ativas"] });
+      queryClient.invalidateQueries({ queryKey: ["empresas-inativas"] });
+      queryClient.invalidateQueries({ queryKey: ["crm-empresas"] });
     }
   };
 
