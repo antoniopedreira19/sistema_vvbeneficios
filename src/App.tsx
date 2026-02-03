@@ -21,6 +21,7 @@ import Configuracoes from "./pages/admin/Configuracoes";
 import ClienteDashboard from "./pages/cliente/ClienteDashboard";
 import MinhaEquipe from "./pages/cliente/MinhaEquipe";
 import Historico from "./pages/cliente/Historico";
+import SelecionarEmpresa from "./pages/cliente/SelecionarEmpresa";
 
 const queryClient = new QueryClient();
 
@@ -120,6 +121,14 @@ const App = () => (
         />
 
         {/* Cliente Routes */}
+        <Route
+          path="/cliente/selecionar-empresa"
+          element={
+            <ProtectedRoute>
+              <SelecionarEmpresa />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/cliente/dashboard"
           element={

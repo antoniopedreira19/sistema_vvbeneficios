@@ -6,7 +6,14 @@ import FirstLoginPasswordDialog from "@/components/FirstLoginPasswordDialog";
 
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
-  const { role, isAdminOrOperacional, isFinanceiro, loading: roleLoading } = useUserRole();
+  const { 
+    role, 
+    isAdminOrOperacional, 
+    isFinanceiro, 
+    loading: roleLoading,
+    empresasVinculadas,
+    hasMultipleEmpresas
+  } = useUserRole();
   const navigate = useNavigate();
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
 
@@ -28,15 +35,27 @@ const Index = () => {
         navigate("/admin/dashboard");
       } else if (isFinanceiro) {
         navigate("/admin/financeiro");
+      } else if (role === "cliente") {
+        // Cliente: verificar se tem múltiplas empresas
+        if (hasMultipleEmpresas) {
+          navigate("/cliente/selecionar-empresa");
+        } else {
+          navigate("/cliente/dashboard");
+        }
       } else {
         navigate("/cliente/dashboard");
       }
     }
-  }, [user, role, isAdminOrOperacional, isFinanceiro, authLoading, roleLoading, navigate]);
+  }, [user, role, isAdminOrOperacional, isFinanceiro, authLoading, roleLoading, navigate, hasMultipleEmpresas, empresasVinculadas]);
 
   const handlePasswordChanged = () => {
     setShowPasswordDialog(false);
-    navigate("/cliente/dashboard");
+    // Após trocar senha, verificar se tem múltiplas empresas
+    if (hasMultipleEmpresas) {
+      navigate("/cliente/selecionar-empresa");
+    } else {
+      navigate("/cliente/dashboard");
+    }
   };
 
   return (

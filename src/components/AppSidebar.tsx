@@ -1,6 +1,6 @@
-import { LayoutDashboard, Briefcase, Receipt, Building2, Settings, Upload, Users, History, LogOut, UserCog } from "lucide-react";
+import { LayoutDashboard, Briefcase, Receipt, Building2, Settings, Upload, Users, History, LogOut, UserCog, ArrowLeftRight } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
@@ -19,6 +19,12 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import EditarPerfilDialog from "@/components/cliente/EditarPerfilDialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Logos VV
 import logoVV from "@/assets/logo-vv-new.png";
@@ -46,7 +52,8 @@ const clienteItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
-  const { isAdmin, isOperacional, isCliente, isFinanceiro, isAdminOrOperacional } = useUserRole();
+  const navigate = useNavigate();
+  const { isAdmin, isOperacional, isCliente, isFinanceiro, isAdminOrOperacional, empresaAtiva, hasMultipleEmpresas } = useUserRole();
   const { signOut } = useAuth();
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
@@ -65,6 +72,10 @@ export function AppSidebar() {
         return true;
       })
     : clienteItems;
+
+  const handleTrocarEmpresa = () => {
+    navigate("/cliente/selecionar-empresa");
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
@@ -93,6 +104,11 @@ export function AppSidebar() {
                 <p className="text-xs text-sidebar-primary font-medium tracking-wide">
                   {isAdmin ? "Administrador" : isOperacional ? "Operacional" : isFinanceiro ? "Financeiro" : "Cliente"}
                 </p>
+                {isCliente && empresaAtiva && (
+                  <p className="text-[10px] text-sidebar-foreground/60 truncate max-w-[140px]" title={empresaAtiva.nome}>
+                    {empresaAtiva.nome}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -131,6 +147,30 @@ export function AppSidebar() {
 
       <SidebarFooter className={`border-t border-sidebar-border py-4 ${collapsed ? 'px-0' : 'px-4'}`}>
         <div className={`space-y-1.5 ${collapsed ? 'flex flex-col items-center' : ''}`}>
+          {isCliente && hasMultipleEmpresas && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleTrocarEmpresa}
+                    className={`text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground ${
+                      collapsed ? 'w-10 h-10' : 'w-full justify-start px-3'
+                    }`}
+                  >
+                    <ArrowLeftRight className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span className="ml-2 text-sm">Trocar Empresa</span>}
+                  </Button>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right">
+                    Trocar Empresa
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          )}
           {isCliente && (
             <Button
               variant="ghost"
