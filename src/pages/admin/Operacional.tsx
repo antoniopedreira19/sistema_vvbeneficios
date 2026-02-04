@@ -42,7 +42,7 @@ import { CobrancaMassaDialog } from "@/components/admin/operacional/CobrancaMass
 import ExcelJS from "exceljs";
 import { formatCNPJ, formatCPF } from "@/lib/validators";
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 100;
 
 type TabType = "entrada" | "seguradora" | "pendencia" | "concluido";
 type SortType = "alfabetica" | "recente";
