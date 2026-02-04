@@ -1,182 +1,108 @@
 
-# Plano: Suporte a Múltiplas Empresas por Usuário Cliente
+## Diagnóstico (o que está acontecendo de verdade)
 
-## Visão Geral
+Pelos requests do navegador, o app **está consultando `user_empresas` corretamente**, e o usuário realmente tem 2 vínculos. Porém o retorno vem assim:
 
-Este plano implementa a funcionalidade que permite um usuário cliente estar vinculado a múltiplas empresas/CNPJs. Após o login, o usuário seleciona qual empresa quer acessar e pode trocar a qualquer momento.
+- 1º vínculo: `empresas: { id, nome, cnpj }` (ok)
+- 2º vínculo: `empresas: null` (quebra a multi-empresa)
 
-## Fluxo do Usuário
+Isso significa que:
+- a linha existe em `user_empresas`, **mas o cliente não tem permissão de SELECT na linha correspondente em `public.empresas`** (RLS), então o “join” embutido (`empresas:empresa_id(...)`) volta `null`.
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           FLUXO DE LOGIN CLIENTE                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   Login → Primeiro Acesso?                                                   │
-│              │                                                               │
-│         ┌────┴────┐                                                          │
-│        SIM       NÃO                                                         │
-│         │         │                                                          │
-│         ▼         │                                                          │
-│   Troca Senha +   │                                                          │
-│   Completa Dados  │                                                          │
-│         │         │                                                          │
-│         ▼         ▼                                                          │
-│   Múltiplas Empresas?                                                        │
-│         │                                                                    │
-│    ┌────┴────┐                                                               │
-│   SIM       NÃO                                                              │
-│    │         │                                                               │
-│    ▼         │                                                               │
-│  Tela de     │                                                               │
-│  Seleção     │                                                               │
-│  de Empresa  │                                                               │
-│    │         │                                                               │
-│    ▼         ▼                                                               │
-│   Sistema Normal (Dashboard Cliente)                                         │
-│    │                                                                         │
-│    ▼                                                                         │
-│   Botão "Trocar Empresa" no Sidebar                                          │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-## O Que Vai Mudar
-
-### 1. Banco de Dados
-- Nova tabela `user_empresas` para vincular usuários a múltiplas empresas
-- O campo `empresa_id` na tabela `profiles` continua existindo para a empresa "ativa" atual
-
-### 2. Tela do Admin
-- O formulário de criar/editar usuário permitirá selecionar múltiplas empresas
-- Exibição das empresas vinculadas na listagem de usuários
-
-### 3. Experiência do Cliente
-- Nova tela bonita para escolher empresa após login
-- Botão no sidebar para trocar de empresa
-- Sistema funciona normalmente após escolha
-
----
-
-## Detalhes Técnicos
-
-### Fase 1: Banco de Dados
-
-#### Nova Tabela `user_empresas`
+E por que isso acontece?  
+Porque a policy atual **“Cliente pode ver empresas vinculadas”** na tabela `empresas` está com a condição errada:
 
 ```sql
-CREATE TABLE user_empresas (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  empresa_id uuid REFERENCES empresas(id) ON DELETE CASCADE NOT NULL,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(user_id, empresa_id)
+ue.empresa_id = ue.id
+```
+
+Ou seja: ela compara `empresa_id` com o **id da própria linha da junction (`user_empresas.id`)**, o que nunca bate e não libera as empresas vinculadas.
+
+Resultado no frontend:
+- `useUserRole.fetchEmpresasVinculadas()` faz `.map(item => item.empresas).filter(Boolean)`
+- como uma empresa vem `null`, ela é descartada
+- então `empresasVinculadas.length` vira 1 e `hasMultipleEmpresas` fica `false`
+- por isso **não aparece a tela de selecionar empresa no login** e **não aparece “Trocar Empresa” na sidebar**
+
+## Melhor solução arquitetural (sem mudar funcionalidades do sistema)
+
+**Não** recomendo remover `profiles.empresa_id`.
+
+Motivo: hoje o sistema usa `profiles.empresa_id` como **empresa ativa** e várias RLS policies (ex.: `colaboradores`, `obras`, `lotes_mensais`, etc.) já filtram dados por `profiles.empresa_id`.  
+Se você remover isso, terá um efeito dominó: precisará reescrever políticas e lógica de dados para todas as telas do cliente (mudança grande e arriscada).
+
+O desenho correto para o seu caso é:
+- `user_empresas`: “quais empresas o usuário pode acessar”
+- `profiles.empresa_id`: “qual empresa está ativa agora (contexto da sessão)”
+
+Então a correção deve ser **apenas** garantir que o cliente consiga listar as empresas vinculadas via `user_empresas`.
+
+## Correção proposta (passo a passo, mínima e focada)
+
+### 1) Corrigir a policy RLS de `public.empresas` (principal causa)
+
+Aplicar este SQL (em uma migração/alteração de banco):
+
+```sql
+DROP POLICY IF EXISTS "Cliente pode ver empresas vinculadas" ON public.empresas;
+
+CREATE POLICY "Cliente pode ver empresas vinculadas"
+ON public.empresas
+FOR SELECT
+TO authenticated
+USING (
+  public.has_role(auth.uid(), 'cliente'::app_role)
+  AND EXISTS (
+    SELECT 1
+    FROM public.user_empresas ue
+    WHERE ue.user_id = auth.uid()
+      AND ue.empresa_id = public.empresas.id
+  )
 );
-
--- Habilitar RLS
-ALTER TABLE user_empresas ENABLE ROW LEVEL SECURITY;
-
--- Policies
-CREATE POLICY "Admin e Operacional podem gerenciar user_empresas"
-ON user_empresas FOR ALL TO authenticated
-USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'operacional'))
-WITH CHECK (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'operacional'));
-
-CREATE POLICY "Usuários podem ver suas empresas vinculadas"
-ON user_empresas FOR SELECT TO authenticated
-USING (user_id = auth.uid());
 ```
 
-#### Migração de Dados Existentes
+Ponto crítico: note o `public.empresas.id` totalmente qualificado.
+- Isso garante que o PostgreSQL compare com o **id da empresa (linha externa)** e não com `ue.id`.
+
+### 2) Validar que a policy ficou certa (checagem objetiva)
+
+Conferir no banco:
+
 ```sql
--- Copiar vínculos existentes de profiles.empresa_id para user_empresas
-INSERT INTO user_empresas (user_id, empresa_id)
-SELECT id, empresa_id FROM profiles 
-WHERE empresa_id IS NOT NULL
-ON CONFLICT DO NOTHING;
+select policyname, qual
+from pg_policies
+where schemaname='public' and tablename='empresas'
+order by policyname;
 ```
 
-### Fase 2: Edge Function `create-user`
+Esperado: a policy “Cliente pode ver empresas vinculadas” precisa conter `ue.empresa_id = public.empresas.id`.
 
-Modificar para aceitar array de empresas:
-- Parâmetro `empresa_ids: string[]` (array de IDs)
-- Inserir múltiplos registros em `user_empresas`
-- Definir `profiles.empresa_id` como a primeira empresa do array (empresa inicial)
+### 3) Validar no navegador (checagem pelo comportamento)
 
-### Fase 3: Componentes Admin
+Após a correção:
+1. Fazer logout/login com o usuário cliente que tem 2 empresas.
+2. Confirmar que o request:
+   `GET /rest/v1/user_empresas?select=empresa_id,empresas:empresa_id(id,nome,cnpj)...`
+   volta `empresas` preenchido nas 2 linhas (nada de `null`).
+3. Confirmar que:
+   - ao logar, redireciona para `/cliente/selecionar-empresa`
+   - a sidebar mostra “Trocar Empresa”
+   - ao trocar, `profiles.empresa_id` é atualizado e as telas do cliente passam a refletir a empresa ativa
 
-#### `NovoUsuarioDialog.tsx`
-- Trocar Select simples por multi-select com checkboxes
-- Validar que cliente tem pelo menos 1 empresa selecionada
+### 4) (Pequena robustez opcional, ainda dentro do mesmo problema)
+Mesmo com RLS correta, vale evitar o app “esconder” vínculos quando vier `null`:
+- Ajustar `useUserRole.fetchEmpresasVinculadas()` para registrar um erro claro se existir algum item com `empresas === null` (indicando RLS ou dado inválido).
+- E, se houver N vínculos em `user_empresas` mas só M detalhes carregados, considerar manter `hasMultipleEmpresas` baseado na contagem de vínculos (para não falhar silenciosamente).
 
-#### `EditarUsuarioDialog.tsx`
-- Carregar empresas vinculadas do usuário da tabela `user_empresas`
-- Permitir adicionar/remover empresas
-- Sincronizar alterações com `user_empresas`
+Isso não muda regra de negócio; só evita que um problema de permissão faça a multi-empresa “sumir” sem aviso.
 
-### Fase 4: Seleção de Empresa (Nova Tela)
+## Riscos / por que isso não afeta outras funcionalidades
+- A alteração é só uma policy de SELECT em `empresas` para o role “cliente”.
+- Admin/Operacional/Financeiro continuam como estão.
+- Não mexe em tabelas de dados do cliente (colaboradores/lotes/etc.).
+- Não muda a lógica do fluxo; apenas faz o app conseguir enxergar as empresas que já estão vinculadas.
 
-#### Novo Componente `EmpresaSelectorPage.tsx`
-Uma página com UI elegante para escolher empresa:
-- Cards grandes com nome e CNPJ de cada empresa
-- Efeito hover suave
-- Transição animada ao selecionar
-- Armazenar escolha em `sessionStorage` ou atualizar `profiles.empresa_id`
-
-### Fase 5: Fluxo de Login
-
-#### Modificar `Index.tsx`
-Após verificar primeiro login:
-1. Buscar empresas vinculadas do usuário em `user_empresas`
-2. Se só tem 1 empresa: ir direto para dashboard
-3. Se tem múltiplas: redirecionar para `/cliente/selecionar-empresa`
-
-### Fase 6: Botão de Troca no Sidebar
-
-#### Modificar `AppSidebar.tsx`
-- Adicionar botão "Trocar Empresa" para clientes com múltiplas empresas
-- Exibir nome da empresa atual no header
-- Ao clicar, redireciona para tela de seleção
-
-### Fase 7: Hook `useUserRole`
-
-Modificar para:
-- Expor lista de empresas vinculadas (`empresasVinculadas`)
-- Expor empresa ativa atual (`empresaAtiva`)
-- Função `setEmpresaAtiva(empresaId)` para trocar empresa
-
----
-
-## Arquivos a Criar/Modificar
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `supabase/migrations/xxx.sql` | Criar | Tabela `user_empresas` + migração |
-| `src/pages/cliente/SelecionarEmpresa.tsx` | Criar | Tela de seleção de empresa |
-| `src/hooks/useUserRole.tsx` | Modificar | Adicionar suporte multi-empresa |
-| `src/components/admin/NovoUsuarioDialog.tsx` | Modificar | Multi-select de empresas |
-| `src/components/admin/EditarUsuarioDialog.tsx` | Modificar | Multi-select de empresas |
-| `src/components/admin/CriarUsuariosMassaDialog.tsx` | Modificar | Criar vinculos em `user_empresas` |
-| `supabase/functions/create-user/index.ts` | Modificar | Aceitar array de empresas |
-| `src/components/AppSidebar.tsx` | Modificar | Botão trocar empresa + nome atual |
-| `src/pages/Index.tsx` | Modificar | Lógica de redirecionamento |
-| `src/App.tsx` | Modificar | Adicionar rota `/cliente/selecionar-empresa` |
-| `src/integrations/supabase/types.ts` | Atualizar | Incluir tipos da nova tabela |
-
----
-
-## Compatibilidade com Sistema Atual
-
-- Usuários com apenas 1 empresa vinculada funcionam exatamente como antes
-- O campo `profiles.empresa_id` continua sendo a empresa "ativa"
-- Todas as queries existentes que usam `profile.empresa_id` continuam funcionando
-- Não há breaking changes para usuários existentes
-
----
-
-## Estimativa de Complexidade
-
-**Nível: Médio**
-
-O sistema atual já tem uma boa arquitetura. As mudanças são incrementais e não destrutivas. A maior parte do trabalho está na UI do multi-select e na nova tela de seleção de empresa.
-
+## Critério de pronto (Definition of Done)
+- Cliente com 2 vínculos em `user_empresas` vê as 2 empresas na tela `/cliente/selecionar-empresa`.
+- Ao logar, aparece a seleção (ou, no mínimo, o botão “Trocar Empresa” fica disponível).
+- Trocar empresa atualiza `profiles.empresa_id` e mantém navegação estável sem tela em branco.
