@@ -29,12 +29,12 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => (
   <SidebarProvider>
     <div className="flex min-h-screen w-full">
       <AppSidebar />
-      <div className="flex-1 flex flex-col">
-        <header className="h-14 border-b border-border flex items-center px-4 bg-card">
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="h-14 border-b border-border flex items-center px-4 bg-card sticky top-0 z-50">
           <SidebarTrigger />
-          <h1 className="ml-4 font-semibold">VV Benefícios</h1>
+          <h1 className="ml-4 font-semibold whitespace-nowrap">VV Benefícios</h1>
         </header>
-        <main className="flex-1 p-6 bg-background">
+        <main className="flex-1 p-6 bg-background overflow-auto">
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
