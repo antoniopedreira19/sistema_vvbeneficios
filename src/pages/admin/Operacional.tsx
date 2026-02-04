@@ -32,6 +32,39 @@ const ITEMS_PER_PAGE = 100;
 type TabType = "entrada" | "seguradora" | "pendencia" | "concluido";
 type SortType = "alfabetica" | "recente";
 
+// --- FUNÇÃO AUXILIAR PARA BUSCAR TUDO (BYPASS LIMIT 1000) ---
+// Essa função busca em pedaços de 1000 até acabar
+const fetchAllColaboradores = async (loteId: string) => {
+  let allData: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("colaboradores_lote")
+      .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
+      .eq("lote_id", loteId)
+      .order("created_at", { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      // Se vier menos que o tamanho da página, chegamos ao fim
+      if (data.length < pageSize) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+  return allData;
+};
+
 export default function Operacional() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>("entrada");
@@ -144,16 +177,9 @@ export default function Operacional() {
       try {
         toast.info("Gerando arquivo e enviando para nuvem...");
 
-        // 1. Buscar dados para o Excel (Igual ao Download)
-        // AQUI ESTÁ O RANGE AUMENTADO (0 a 50.000)
-        const { data: itens, error: fetchError } = await supabase
-          .from("colaboradores_lote")
-          .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
-          .eq("lote_id", lote.id)
-          .order("created_at", { ascending: false })
-          .range(0, 2000);
+        // 1. Buscar TODOS os dados (Bypass limit 1000)
+        const itens = await fetchAllColaboradores(lote.id);
 
-        if (fetchError) throw fetchError;
         if (!itens || itens.length === 0) throw new Error("Lote vazio, impossível enviar.");
 
         // 2. Filtrar Duplicatas (Manter apenas o mais recente)
@@ -164,7 +190,7 @@ export default function Operacional() {
           cpfsProcessados.add(cpfLimpo);
           return true;
         });
-        itensUnicos.sort((a, b) => a.nome.localeCompare(b.nome));
+        itensUnicos.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
 
         // 3. Gerar o Excel em Memória
         let cnpj = (lote.empresa as any)?.cnpj || "";
@@ -195,7 +221,7 @@ export default function Operacional() {
           cell.alignment = { horizontal: "center" };
         });
 
-        itensUnicos.forEach((c) => {
+        itensUnicos.forEach((c: any) => {
           let dataNascDate = null;
           if (c.data_nascimento) {
             const parts = c.data_nascimento.split("-");
@@ -438,18 +464,10 @@ export default function Operacional() {
 
   const handleDownloadLote = async (lote: LoteOperacional) => {
     try {
-      toast.info("Preparando download...");
+      toast.info("Preparando download... (Isso pode demorar um pouco para lotes grandes)");
 
-      // 1. Busca todos os itens do lote ordenados por data de criação (mais recente primeiro)
-      // AQUI TAMBÉM: RANGE AUMENTADO (0 a 50.000)
-      const { data: itens, error } = await supabase
-        .from("colaboradores_lote")
-        .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
-        .eq("lote_id", lote.id)
-        .order("created_at", { ascending: false })
-        .range(0, 50000);
-
-      if (error) throw error;
+      // 1. Busca todos os itens (usando a função de loop para bypassar limite de 1000)
+      const itens = await fetchAllColaboradores(lote.id);
 
       if (!itens || itens.length === 0) {
         toast.warning("Não há colaboradores neste lote para baixar.");
@@ -458,7 +476,7 @@ export default function Operacional() {
 
       // 2. FILTRAGEM DE DUPLICATAS
       const cpfsProcessados = new Set();
-      const itensUnicos = itens.filter((item) => {
+      const itensUnicos = itens.filter((item: any) => {
         const cpfLimpo = item.cpf.replace(/\D/g, "");
         if (cpfsProcessados.has(cpfLimpo)) {
           return false;
@@ -468,7 +486,7 @@ export default function Operacional() {
       });
 
       // 3. Ordenação Alfabética para o Excel
-      itensUnicos.sort((a, b) => a.nome.localeCompare(b.nome));
+      itensUnicos.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
 
       let cnpj = (lote.empresa as any)?.cnpj || "";
       if (!cnpj && lote.empresa_id) {
@@ -499,7 +517,7 @@ export default function Operacional() {
         cell.alignment = { horizontal: "center" };
       });
 
-      itensUnicos.forEach((c) => {
+      itensUnicos.forEach((c: any) => {
         let dataNascDate = null;
         if (c.data_nascimento) {
           const parts = c.data_nascimento.split("-");
