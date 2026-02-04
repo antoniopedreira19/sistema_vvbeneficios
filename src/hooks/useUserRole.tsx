@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
@@ -25,43 +25,14 @@ export const useUserRole = () => {
   const [empresasVinculadas, setEmpresasVinculadas] = useState<EmpresaVinculada[]>([]);
   const [empresasLoading, setEmpresasLoading] = useState(true);
   const [empresaAtiva, setEmpresaAtivaState] = useState<EmpresaVinculada | null>(null);
-
-  const fetchEmpresasVinculadas = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("user_empresas")
-        .select(`
-          empresa_id,
-          empresas:empresa_id (
-            id,
-            nome,
-            cnpj
-          )
-        `)
-        .eq("user_id", userId);
-
-      if (error) {
-        console.error("Error fetching empresas vinculadas:", error);
-        return [];
-      }
-
-      // Extrair empresas do resultado
-      const empresas: EmpresaVinculada[] = (data || [])
-        .map((item: any) => item.empresas)
-        .filter(Boolean);
-
-      return empresas;
-    } catch (error) {
-      console.error("Error in fetchEmpresasVinculadas:", error);
-      return [];
-    }
-  }, []);
+  
+  // Prevent duplicate fetches
+  const fetchedRef = useRef<string | null>(null);
 
   const setEmpresaAtiva = useCallback(async (empresaId: string) => {
     if (!user) return;
 
     try {
-      // Atualizar profiles.empresa_id para definir empresa ativa
       const { error } = await supabase
         .from("profiles")
         .update({ empresa_id: empresaId })
@@ -72,7 +43,6 @@ export const useUserRole = () => {
         return;
       }
 
-      // Atualizar estado local
       const novaEmpresaAtiva = empresasVinculadas.find(e => e.id === empresaId);
       if (novaEmpresaAtiva) {
         setEmpresaAtivaState(novaEmpresaAtiva);
@@ -91,54 +61,79 @@ export const useUserRole = () => {
       setEmpresaAtivaState(null);
       setLoading(false);
       setEmpresasLoading(false);
+      fetchedRef.current = null;
       return;
     }
 
-    const fetchRoleAndProfile = async () => {
-      setEmpresasLoading(true);
+    // Prevent duplicate fetches for the same user
+    if (fetchedRef.current === user.id) {
+      return;
+    }
+    fetchedRef.current = user.id;
+
+    const fetchAllData = async () => {
       try {
-        // Fetch role
-        const { data: roleData, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .single();
+        // Fetch role, profile, and empresas in PARALLEL
+        const [roleResult, profileResult, empresasResult] = await Promise.all([
+          supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .single(),
+          supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .single(),
+          supabase
+            .from("user_empresas")
+            .select(`
+              empresa_id,
+              empresas:empresa_id (
+                id,
+                nome,
+                cnpj
+              )
+            `)
+            .eq("user_id", user.id)
+        ]);
 
-        const userRole = roleData?.role as UserRole;
+        const userRole = roleResult.data?.role as UserRole;
         setRole(userRole);
+        setProfile(profileResult.data);
 
-        // Fetch profile
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
+        // Process empresas only for clients
+        if (userRole === "cliente" && empresasResult.data) {
+          const empresas: EmpresaVinculada[] = empresasResult.data
+            .map((item: any) => item.empresas)
+            .filter(Boolean);
 
-        setProfile(profileData);
+          // Log warning if some empresas came back null (RLS issue)
+          const nullCount = empresasResult.data.filter((item: any) => !item.empresas).length;
+          if (nullCount > 0) {
+            console.warn(`[useUserRole] ${nullCount} empresa(s) returned null - possible RLS issue`);
+          }
 
-        // Se for cliente, buscar empresas vinculadas
-        if (userRole === "cliente") {
-          const empresas = await fetchEmpresasVinculadas(user.id);
           setEmpresasVinculadas(empresas);
 
-          // Definir empresa ativa baseada em profiles.empresa_id
-          if (profileData?.empresa_id && empresas.length > 0) {
-            const ativa = empresas.find(e => e.id === profileData.empresa_id);
+          // Set active empresa
+          if (profileResult.data?.empresa_id && empresas.length > 0) {
+            const ativa = empresas.find(e => e.id === profileResult.data.empresa_id);
             setEmpresaAtivaState(ativa || empresas[0]);
           } else if (empresas.length > 0) {
             setEmpresaAtivaState(empresas[0]);
           }
         }
       } catch (error) {
-        console.error("Error fetching role and profile:", error);
+        console.error("Error fetching user data:", error);
       } finally {
         setLoading(false);
         setEmpresasLoading(false);
       }
     };
 
-    fetchRoleAndProfile();
-  }, [user, fetchEmpresasVinculadas]);
+    fetchAllData();
+  }, [user]);
 
   return { 
     role, 
@@ -150,7 +145,6 @@ export const useUserRole = () => {
     isCliente: role === "cliente",
     isFinanceiro: role === "financeiro",
     isAdminOrOperacional: role === "admin" || role === "operacional",
-    // Multi-empresa
     empresasVinculadas,
     empresaAtiva,
     setEmpresaAtiva,
