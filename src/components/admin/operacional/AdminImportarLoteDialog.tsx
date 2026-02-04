@@ -192,7 +192,7 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
 
   const [colaboradores, setColaboradores] = useState<ValidatedRow[]>([]);
 
-  // Gera lista de competências (últimos 2 meses + próximos 6 meses)
+  // Gera lista de competências (Julho/2025 até 2 meses após o mês atual)
   const gerarCompetencias = () => {
     const meses = [
       "Janeiro",
@@ -211,16 +211,17 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
     const hoje = new Date();
     const competencias: string[] = [];
 
-    // Últimos 2 meses
-    for (let i = 4; i >= 1; i--) {
-      const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-      competencias.push(`${meses[d.getMonth()]}/${d.getFullYear()}`);
-    }
+    // Data inicial fixa: Julho/2025
+    const dataInicial = new Date(2025, 6, 1); // Julho = mês 6 (0-indexed)
+    
+    // Data final: 2 meses após o mês atual
+    const dataFinal = new Date(hoje.getFullYear(), hoje.getMonth() + 2, 1);
 
-    // Mês atual + próximos 6 meses
-    for (let i = 0; i <= 6; i++) {
-      const d = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
-      competencias.push(`${meses[d.getMonth()]}/${d.getFullYear()}`);
+    // Gerar todas as competências entre data inicial e final
+    let dataAtual = new Date(dataInicial);
+    while (dataAtual <= dataFinal) {
+      competencias.push(`${meses[dataAtual.getMonth()]}/${dataAtual.getFullYear()}`);
+      dataAtual.setMonth(dataAtual.getMonth() + 1);
     }
 
     return competencias;
