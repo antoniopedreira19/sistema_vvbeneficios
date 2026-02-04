@@ -145,7 +145,7 @@ export default function Operacional() {
         toast.info("Gerando arquivo e enviando para nuvem...");
 
         // 1. Buscar dados para o Excel (Igual ao Download)
-        // AUMENTADO O RANGE AQUI
+        // AQUI ESTÁ O RANGE AUMENTADO (0 a 50.000)
         const { data: itens, error: fetchError } = await supabase
           .from("colaboradores_lote")
           .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
@@ -435,12 +435,13 @@ export default function Operacional() {
       setActionLoading(null);
     },
   });
+
   const handleDownloadLote = async (lote: LoteOperacional) => {
     try {
       toast.info("Preparando download...");
 
       // 1. Busca todos os itens do lote ordenados por data de criação (mais recente primeiro)
-      // AUMENTADO O RANGE AQUI TAMBÉM
+      // AQUI TAMBÉM: RANGE AUMENTADO (0 a 50.000)
       const { data: itens, error } = await supabase
         .from("colaboradores_lote")
         .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
