@@ -151,7 +151,7 @@ export default function Operacional() {
           .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
           .eq("lote_id", lote.id)
           .order("created_at", { ascending: false })
-          .range(0, 50000);
+          .range(0, 2000);
 
         if (fetchError) throw fetchError;
         if (!itens || itens.length === 0) throw new Error("Lote vazio, impossível enviar.");
