@@ -5,16 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import {
-  Building2,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-  Inbox,
-  Upload,
-  Search,
-  ArrowUpDown,
-} from "lucide-react";
+import { Building2, Clock, AlertTriangle, CheckCircle2, Inbox, Upload, Search, ArrowUpDown } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,13 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LotesTable, LoteOperacional } from "@/components/admin/operacional/LotesTable";
 import { ProcessarRetornoDialog } from "@/components/admin/operacional/ProcessarRetornoDialog";
 import { AdminImportarLoteDialog } from "@/components/admin/operacional/AdminImportarLoteDialog";
@@ -88,13 +73,7 @@ export default function Operacional() {
           obra:obras(id, nome) 
         `,
         )
-        .in("status", [
-          "aguardando_processamento",
-          "em_analise_seguradora",
-          "com_pendencia",
-          "concluido",
-          "faturado",
-        ])
+        .in("status", ["aguardando_processamento", "em_analise_seguradora", "com_pendencia", "concluido", "faturado"])
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -107,8 +86,18 @@ export default function Operacional() {
     // Ordenar por data (mais recente primeiro)
     const parseCompetencia = (comp: string) => {
       const meses: Record<string, number> = {
-        "Janeiro": 0, "Fevereiro": 1, "Março": 2, "Abril": 3, "Maio": 4, "Junho": 5,
-        "Julho": 6, "Agosto": 7, "Setembro": 8, "Outubro": 9, "Novembro": 10, "Dezembro": 11
+        Janeiro: 0,
+        Fevereiro: 1,
+        Março: 2,
+        Abril: 3,
+        Maio: 4,
+        Junho: 5,
+        Julho: 6,
+        Agosto: 7,
+        Setembro: 8,
+        Outubro: 9,
+        Novembro: 10,
+        Dezembro: 11,
       };
       const [mes, ano] = comp.split("/");
       return new Date(parseInt(ano), meses[mes] || 0, 1);
@@ -156,18 +145,20 @@ export default function Operacional() {
         toast.info("Gerando arquivo e enviando para nuvem...");
 
         // 1. Buscar dados para o Excel (Igual ao Download)
+        // AUMENTADO O RANGE AQUI
         const { data: itens, error: fetchError } = await supabase
           .from("colaboradores_lote")
           .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
           .eq("lote_id", lote.id)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .range(0, 50000);
 
         if (fetchError) throw fetchError;
         if (!itens || itens.length === 0) throw new Error("Lote vazio, impossível enviar.");
 
         // 2. Filtrar Duplicatas (Manter apenas o mais recente)
         const cpfsProcessados = new Set();
-        const itensUnicos = itens.filter(item => {
+        const itensUnicos = itens.filter((item) => {
           const cpfLimpo = item.cpf.replace(/\D/g, "");
           if (cpfsProcessados.has(cpfLimpo)) return false;
           cpfsProcessados.add(cpfLimpo);
@@ -184,7 +175,15 @@ export default function Operacional() {
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Lista Seguradora");
-        const headers = ["NOME COMPLETO", "SEXO", "CPF", "DATA NASCIMENTO", "SALARIO", "CLASSIFICACAO SALARIAL", "CNPJ DA EMPRESA"];
+        const headers = [
+          "NOME COMPLETO",
+          "SEXO",
+          "CPF",
+          "DATA NASCIMENTO",
+          "SALARIO",
+          "CLASSIFICACAO SALARIAL",
+          "CNPJ DA EMPRESA",
+        ];
         const headerRow = worksheet.addRow(headers);
 
         // Estilização
@@ -200,11 +199,17 @@ export default function Operacional() {
           let dataNascDate = null;
           if (c.data_nascimento) {
             const parts = c.data_nascimento.split("-");
-            if (parts.length === 3) dataNascDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            if (parts.length === 3)
+              dataNascDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
           }
           const row = worksheet.addRow([
-            c.nome?.toUpperCase(), c.sexo, formatCPF(c.cpf), dataNascDate,
-            c.salario ? Number(c.salario) : 0, c.classificacao_salario, formatCNPJ(cnpj)
+            c.nome?.toUpperCase(),
+            c.sexo,
+            formatCPF(c.cpf),
+            dataNascDate,
+            c.salario ? Number(c.salario) : 0,
+            c.classificacao_salario,
+            formatCNPJ(cnpj),
           ]);
           if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
           row.getCell(5).numFmt = "#,##0.00";
@@ -216,7 +221,8 @@ export default function Operacional() {
         // 4. Personalizar Nome do Arquivo
         const nomeEmpresaRaw = lote.empresa?.nome || "EMPRESA";
         const nomeEmpresaLimpo = nomeEmpresaRaw
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
           .replace(/[^a-zA-Z0-9\s]/g, "")
           .trim()
           .replace(/\s+/g, "_")
@@ -227,15 +233,15 @@ export default function Operacional() {
 
         // 5. Upload para o Supabase Storage
         const { error: uploadError } = await supabase.storage
-          .from('contratos')
+          .from("contratos")
           .upload(fileName, blob, { upsert: true });
 
         if (uploadError) throw uploadError;
 
         // 6. Pegar a URL Pública
-        const { data: { publicUrl } } = supabase.storage
-          .from('contratos')
-          .getPublicUrl(fileName);
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("contratos").getPublicUrl(fileName);
 
         // 7. Atualizar Banco de Dados (Isso dispara o Webhook)
         const { error: updateError } = await supabase
@@ -243,12 +249,11 @@ export default function Operacional() {
           .update({
             status: "em_analise_seguradora",
             enviado_seguradora_em: new Date().toISOString(),
-            arquivo_url: publicUrl
+            arquivo_url: publicUrl,
           })
           .eq("id", lote.id);
 
         if (updateError) throw updateError;
-
       } catch (error: any) {
         throw error;
       }
@@ -315,16 +320,18 @@ export default function Operacional() {
 
       if (fetchError) throw fetchError;
       if (!loteDestino) {
-        throw new Error("Nenhum lote encontrado para mesclar. Verifique se existe um lote concluído ou faturado da mesma empresa, obra e competência.");
+        throw new Error(
+          "Nenhum lote encontrado para mesclar. Verifique se existe um lote concluído ou faturado da mesma empresa, obra e competência.",
+        );
       }
 
       // 2. Migrar colaboradores_lote do lote pendente para o lote destino E marcar como aprovados
       const { error: migrateError } = await supabase
         .from("colaboradores_lote")
-        .update({ 
+        .update({
           lote_id: loteDestino.id,
-          status_seguradora: "aprovado",  // Ao resolver, o colaborador é aprovado
-          motivo_reprovacao_seguradora: null  // Limpa o motivo de reprovação
+          status_seguradora: "aprovado", // Ao resolver, o colaborador é aprovado
+          motivo_reprovacao_seguradora: null, // Limpa o motivo de reprovação
         })
         .eq("lote_id", lote.id);
 
@@ -340,10 +347,7 @@ export default function Operacional() {
       if (updateError) throw updateError;
 
       // 4. Excluir o lote pendente (agora sem colaboradores)
-      const { error: deleteError } = await supabase
-        .from("lotes_mensais")
-        .delete()
-        .eq("id", lote.id);
+      const { error: deleteError } = await supabase.from("lotes_mensais").delete().eq("id", lote.id);
 
       if (deleteError) throw deleteError;
     },
@@ -366,10 +370,7 @@ export default function Operacional() {
       setActionLoading(lote.id);
 
       // Excluir o lote pendente diretamente
-      const { error } = await supabase
-        .from("lotes_mensais")
-        .delete()
-        .eq("id", lote.id);
+      const { error } = await supabase.from("lotes_mensais").delete().eq("id", lote.id);
 
       if (error) throw error;
     },
@@ -411,13 +412,14 @@ export default function Operacional() {
           competencia: lote.competencia,
           total_aprovados: (lote.total_colaboradores || 0) - (lote.total_reprovados || 0),
           total_reprovados: lote.total_reprovados || 0,
-          reprovados: reprovados?.map(r => ({
-            nome: r.nome,
-            cpf: r.cpf,
-            motivo: r.motivo_reprovacao_seguradora
-          })) || [],
-          nome_obra: lote.obra?.nome || "Sem obra especificada"
-        }
+          reprovados:
+            reprovados?.map((r) => ({
+              nome: r.nome,
+              cpf: r.cpf,
+              motivo: r.motivo_reprovacao_seguradora,
+            })) || [],
+          nome_obra: lote.obra?.nome || "Sem obra especificada",
+        },
       });
 
       if (notifError) throw notifError;
@@ -438,11 +440,13 @@ export default function Operacional() {
       toast.info("Preparando download...");
 
       // 1. Busca todos os itens do lote ordenados por data de criação (mais recente primeiro)
+      // AUMENTADO O RANGE AQUI TAMBÉM
       const { data: itens, error } = await supabase
         .from("colaboradores_lote")
         .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
         .eq("lote_id", lote.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, 50000);
 
       if (error) throw error;
 
@@ -453,7 +457,7 @@ export default function Operacional() {
 
       // 2. FILTRAGEM DE DUPLICATAS
       const cpfsProcessados = new Set();
-      const itensUnicos = itens.filter(item => {
+      const itensUnicos = itens.filter((item) => {
         const cpfLimpo = item.cpf.replace(/\D/g, "");
         if (cpfsProcessados.has(cpfLimpo)) {
           return false;
@@ -626,7 +630,7 @@ export default function Operacional() {
           <Button onClick={() => setImportarDialogOpen(true)} variant="outline">
             <Upload className="mr-2 h-4 w-4" /> Importar
           </Button>
-          
+
           <CobrancaMassaDialog />
         </div>
       </div>
@@ -750,15 +754,15 @@ export default function Operacional() {
           <AlertDialogHeader>
             <AlertDialogTitle>Resolver Pendência?</AlertDialogTitle>
             <AlertDialogDescription>
-              As <strong>{selectedLote?.total_reprovados || 0} vidas</strong> pendentes serão adicionadas ao lote original
-              da empresa <strong>{selectedLote?.empresa?.nome}</strong> ({selectedLote?.competencia}).
-              <br /><br />
-              O lote pendente será excluído após a operação.
+              As <strong>{selectedLote?.total_reprovados || 0} vidas</strong> pendentes serão adicionadas ao lote
+              original da empresa <strong>{selectedLote?.empresa?.nome}</strong> ({selectedLote?.competencia}).
+              <br />
+              <br />O lote pendente será excluído após a operação.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => selectedLote && resolverPendenciaMutation.mutate(selectedLote)}
               className="bg-green-600 hover:bg-green-700"
             >
@@ -775,13 +779,14 @@ export default function Operacional() {
             <AlertDialogDescription>
               O lote pendente da empresa <strong>{selectedLote?.empresa?.nome}</strong> ({selectedLote?.competencia})
               será excluído permanentemente.
-              <br /><br />
+              <br />
+              <br />
               As <strong>{selectedLote?.total_reprovados || 0} vidas</strong> não serão adicionadas a nenhum lote.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => selectedLote && rejeitarPendenciaMutation.mutate(selectedLote)}
               className="bg-destructive hover:bg-destructive/90"
             >
