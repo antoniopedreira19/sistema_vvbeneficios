@@ -1,6 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Pagination,
   PaginationContent,
@@ -19,7 +20,6 @@ export interface LoteOperacional {
   created_at: string;
   status: string;
   empresa: { nome: string; cnpj?: string } | null;
-  // ATUALIZADO: Incluímos o ID aqui
   obra: { id: string; nome: string } | null;
   empresa_id?: string;
 }
@@ -37,6 +37,11 @@ interface LotesTableProps {
   onResolve?: (lote: LoteOperacional) => void;
   onReject?: (lote: LoteOperacional) => void;
   actionLoading?: string | null;
+  // Props para seleção em massa
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
+  allLotesIds?: string[]; // IDs de todos os lotes (não apenas da página atual)
 }
 
 export function LotesTable({
@@ -52,7 +57,36 @@ export function LotesTable({
   onResolve,
   onReject,
   actionLoading,
+  selectable = false,
+  selectedIds = new Set(),
+  onSelectionChange,
+  allLotesIds = [],
 }: LotesTableProps) {
+  const currentPageIds = lotes.map((l) => l.id);
+  const allSelected = allLotesIds.length > 0 && allLotesIds.every((id) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
+
+  const handleSelectAll = (checked: boolean) => {
+    if (!onSelectionChange) return;
+    if (checked) {
+      // Selecionar todos os lotes (não apenas da página atual)
+      onSelectionChange(new Set(allLotesIds));
+    } else {
+      onSelectionChange(new Set());
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (!onSelectionChange) return;
+    const newSet = new Set(selectedIds);
+    if (checked) {
+      newSet.add(id);
+    } else {
+      newSet.delete(id);
+    }
+    onSelectionChange(newSet);
+  };
+
   const getActionButton = (lote: LoteOperacional) => {
     const isActionLoading = actionLoading === lote.id;
 
@@ -195,6 +229,20 @@ export function LotesTable({
         <Table>
           <TableHeader>
             <TableRow>
+              {selectable && (
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={allSelected}
+                    ref={(ref) => {
+                      if (ref) {
+                        (ref as any).indeterminate = someSelected;
+                      }
+                    }}
+                    onCheckedChange={handleSelectAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
+              )}
               <TableHead>Empresa</TableHead>
               <TableHead>Obra</TableHead>
               <TableHead>Competência</TableHead>
@@ -208,7 +256,16 @@ export function LotesTable({
           </TableHeader>
           <TableBody>
             {lotes.map((lote) => (
-              <TableRow key={lote.id}>
+              <TableRow key={lote.id} className={selectedIds.has(lote.id) ? "bg-muted/50" : ""}>
+                {selectable && (
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(lote.id)}
+                      onCheckedChange={(checked) => handleSelectOne(lote.id, !!checked)}
+                      aria-label={`Selecionar ${lote.empresa?.nome}`}
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="font-medium">{lote.empresa?.nome?.toUpperCase() || "-"}</TableCell>
                 <TableCell>{lote.obra?.nome?.toUpperCase() || "SEM OBRA"}</TableCell>
                 <TableCell>
