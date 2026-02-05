@@ -216,7 +216,9 @@ export default function Operacional() {
         }
 
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet("Relação de Vidas");
+        const worksheet = workbook.addWorksheet("Relação de Vidas"); // Alterado aqui
+
+        // Cabeçalhos alterados
         const headers = ["NOME", "SEXO", "CPF", "DATA NASCIMENTO", "SALARIO", "CLASSIFICAÇÃO SALARIO", "CNPJ"];
         const headerRow = worksheet.addRow(headers);
 
@@ -542,16 +544,10 @@ export default function Operacional() {
       cnpj = cnpj.replace(/\D/g, "");
 
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Lista Seguradora");
-      const headers = [
-        "NOME COMPLETO",
-        "SEXO",
-        "CPF",
-        "DATA NASCIMENTO",
-        "SALARIO",
-        "CLASSIFICACAO SALARIAL",
-        "CNPJ DA EMPRESA",
-      ];
+      const worksheet = workbook.addWorksheet("Relação de Vidas"); // Alterado aqui
+
+      // Cabeçalhos alterados
+      const headers = ["NOME", "SEXO", "CPF", "DATA NASCIMENTO", "SALARIO", "CLASSIFICAÇÃO SALARIO", "CNPJ"];
       const headerRow = worksheet.addRow(headers);
 
       const COL_WIDTH = 37.11;
