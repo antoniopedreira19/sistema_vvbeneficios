@@ -273,12 +273,19 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
         .eq("status", "ativa")
         .order("nome")
         .then(({ data }) => {
-          setObras(data || []);
-          setSelectedObra(""); // Limpa seleção anterior
+          const obrasData = data || [];
+          setObras(obrasData);
+          // Define a primeira obra como padrão se houver obras
+          if (obrasData.length > 0) {
+            setSelectedObra(obrasData[0].id);
+          } else {
+            setSelectedObra("");
+          }
           setLoading(false);
         });
     } else {
       setObras([]);
+      setSelectedObra("");
     }
   }, [selectedEmpresa]);
 
