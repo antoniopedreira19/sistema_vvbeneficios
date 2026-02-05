@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Building2, Clock, AlertTriangle, CheckCircle2, Inbox, Upload, Search, ArrowUpDown } from "lucide-react";
+import { Building2, Clock, AlertTriangle, CheckCircle2, Inbox, Upload, Search, ArrowUpDown, Loader2, CreditCard } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -92,6 +92,11 @@ export default function Operacional() {
   const [processarDialogOpen, setProcessarDialogOpen] = useState(false);
   const [importarDialogOpen, setImportarDialogOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Estado para seleção em massa (faturamento)
+  const [selectedLotesIds, setSelectedLotesIds] = useState<Set<string>>(new Set());
+  const [confirmFaturarMassaDialog, setConfirmFaturarMassaDialog] = useState(false);
+  const [faturandoMassa, setFaturandoMassa] = useState(false);
 
   // --- QUERY ---
   const { data: lotes = [], isLoading } = useQuery({
@@ -320,6 +325,44 @@ export default function Operacional() {
       setActionLoading(null);
     },
   });
+
+  // --- MUTAÇÃO DE FATURAMENTO EM MASSA ---
+  const handleFaturarMassa = async () => {
+    if (selectedLotesIds.size === 0) return;
+    
+    setFaturandoMassa(true);
+    const lotesParaFaturar = getLotesByTab("concluido").filter((l) => selectedLotesIds.has(l.id));
+    
+    let sucesso = 0;
+    let erros = 0;
+
+    for (const lote of lotesParaFaturar) {
+      try {
+        const vidas = (lote.total_colaboradores || 0) - (lote.total_reprovados || 0);
+        const valor = vidas * 50;
+        const { error } = await supabase
+          .from("lotes_mensais")
+          .update({ status: "faturado", valor_total: valor })
+          .eq("id", lote.id);
+        if (error) throw error;
+        sucesso++;
+      } catch (e: any) {
+        console.error(`Erro ao faturar lote ${lote.id}:`, e);
+        erros++;
+      }
+    }
+
+    setFaturandoMassa(false);
+    setConfirmFaturarMassaDialog(false);
+    setSelectedLotesIds(new Set());
+    queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
+
+    if (erros === 0) {
+      toast.success(`${sucesso} lote(s) faturado(s) com sucesso!`);
+    } else {
+      toast.warning(`${sucesso} faturado(s), ${erros} com erro.`);
+    }
+  };
 
   // --- MUTAÇÃO DE RESOLVER PENDÊNCIA ---
   const resolverPendenciaMutation = useMutation({
@@ -720,20 +763,53 @@ export default function Operacional() {
             />
           </TabCard>
         </TabsContent>
-        {renderTabContent(
-          "concluido",
-          "Prontos para Faturamento",
-          <CheckCircle2 className="text-green-500" />,
-          getPaginatedLotes,
-          pages,
-          setPages,
-          handleAction,
-          actionLoading,
-          "faturar",
-          getTotalPages,
-          handleDownloadLote,
-          setLoteParaEditar,
-        )}
+        <TabsContent value="concluido" className="mt-6">
+          <TabCard title="Prontos para Faturamento" icon={CheckCircle2} color="text-green-500">
+            {/* Botão de Faturar em Massa */}
+            {selectedLotesIds.size > 0 && (
+              <div className="mb-4 flex items-center gap-3 p-3 bg-muted rounded-lg">
+                <span className="text-sm font-medium">
+                  {selectedLotesIds.size} lote(s) selecionado(s)
+                </span>
+                <Button
+                  size="sm"
+                  onClick={() => setConfirmFaturarMassaDialog(true)}
+                  disabled={faturandoMassa}
+                >
+                  {faturandoMassa ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CreditCard className="h-4 w-4 mr-2" />
+                  )}
+                  Faturar Selecionados
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedLotesIds(new Set())}
+                >
+                  Limpar Seleção
+                </Button>
+              </div>
+            )}
+            <LotesTable
+              lotes={getPaginatedLotes("concluido")}
+              isLoading={false}
+              currentPage={pages.concluido}
+              totalPages={getTotalPages("concluido")}
+              onPageChange={(p: number) => setPages((prev: any) => ({ ...prev, concluido: p }))}
+              actionType="faturar"
+              onAction={(l: any) => handleAction(l, "concluido")}
+              actionLoading={actionLoading}
+              onDownload={handleDownloadLote}
+              onEdit={setLoteParaEditar}
+              selectable={true}
+              selectedIds={selectedLotesIds}
+              onSelectionChange={setSelectedLotesIds}
+              allLotesIds={getLotesByTab("concluido").map((l) => l.id)}
+            />
+          </TabCard>
+        </TabsContent>
       </Tabs>
 
       <AlertDialog open={confirmEnviarDialog} onOpenChange={setConfirmEnviarDialog}>
@@ -815,6 +891,37 @@ export default function Operacional() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Dialog de Faturamento em Massa */}
+      <AlertDialog open={confirmFaturarMassaDialog} onOpenChange={setConfirmFaturarMassaDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Faturar {selectedLotesIds.size} Lote(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a faturar <strong>{selectedLotesIds.size} lote(s)</strong> selecionado(s).
+              <br /><br />
+              Valor total estimado: <strong>R$ {
+                getLotesByTab("concluido")
+                  .filter((l) => selectedLotesIds.has(l.id))
+                  .reduce((acc, l) => acc + ((l.total_colaboradores || 0) - (l.total_reprovados || 0)) * 50, 0)
+                  .toLocaleString("pt-BR")
+              }</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={faturandoMassa}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleFaturarMassa} disabled={faturandoMassa}>
+              {faturandoMassa ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Faturando...
+                </>
+              ) : (
+                "Confirmar Faturamento"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AdminImportarLoteDialog open={importarDialogOpen} onOpenChange={setImportarDialogOpen} />
 
       {selectedLote && (
