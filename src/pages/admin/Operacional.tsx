@@ -16,6 +16,7 @@ import {
   ArrowUpDown,
   Loader2,
   CreditCard,
+  Archive, // Icone para o ZIP
 } from "lucide-react";
 import {
   AlertDialog,
@@ -36,6 +37,7 @@ import { AdminImportarLoteDialog } from "@/components/admin/operacional/AdminImp
 import { EditarLoteDialog } from "@/components/admin/operacional/EditarLoteDialog";
 import { CobrancaMassaDialog } from "@/components/admin/operacional/CobrancaMassaDialog";
 import ExcelJS from "exceljs";
+import JSZip from "jszip"; // Importante: Importar o JSZip
 import { formatCNPJ, formatCPF } from "@/lib/validators";
 
 const ITEMS_PER_PAGE = 100;
@@ -44,7 +46,6 @@ type TabType = "entrada" | "seguradora" | "pendencia" | "concluido";
 type SortType = "alfabetica" | "recente";
 
 // --- FUNÇÃO AUXILIAR PARA BUSCAR TUDO (BYPASS LIMIT 1000) ---
-// Essa função busca em pedaços de 1000 até acabar
 const fetchAllColaboradores = async (loteId: string) => {
   let allData: any[] = [];
   let page = 0;
@@ -63,7 +64,6 @@ const fetchAllColaboradores = async (loteId: string) => {
 
     if (data && data.length > 0) {
       allData = [...allData, ...data];
-      // Se vier menos que o tamanho da página, chegamos ao fim
       if (data.length < pageSize) {
         hasMore = false;
       } else {
@@ -74,6 +74,63 @@ const fetchAllColaboradores = async (loteId: string) => {
     }
   }
   return allData;
+};
+
+// --- FUNÇÃO DE GERAÇÃO DO EXCEL (Reutilizável) ---
+const gerarBufferExcel = async (lote: LoteOperacional, itens: any[]) => {
+  // 1. Filtrar Duplicatas
+  const cpfsProcessados = new Set();
+  const itensUnicos = itens.filter((item: any) => {
+    const cpfLimpo = item.cpf.replace(/\D/g, "");
+    if (cpfsProcessados.has(cpfLimpo)) return false;
+    cpfsProcessados.add(cpfLimpo);
+    return true;
+  });
+  itensUnicos.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+
+  // 2. Buscar CNPJ se necessário
+  let cnpj = (lote.empresa as any)?.cnpj || "";
+  if (!cnpj && lote.empresa_id) {
+    const { data: emp } = await supabase.from("empresas").select("cnpj").eq("id", lote.empresa_id).single();
+    if (emp) cnpj = emp.cnpj;
+  }
+  cnpj = cnpj.replace(/\D/g, "");
+
+  // 3. Montar Workbook
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Relação de Vidas");
+
+  const headers = ["NOME", "SEXO", "CPF", "DATA NASCIMENTO", "SALARIO", "CLASSIFICAÇÃO SALARIO", "CNPJ"];
+  const headerRow = worksheet.addRow(headers);
+
+  const COL_WIDTH = 37.11;
+  worksheet.columns = headers.map(() => ({ width: COL_WIDTH }));
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
+    cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+    cell.alignment = { horizontal: "center" };
+  });
+
+  itensUnicos.forEach((c: any) => {
+    let dataNascDate = null;
+    if (c.data_nascimento) {
+      const parts = c.data_nascimento.split("-");
+      if (parts.length === 3) dataNascDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    }
+    const row = worksheet.addRow([
+      c.nome?.toUpperCase(),
+      c.sexo,
+      formatCPF(c.cpf),
+      dataNascDate,
+      c.salario ? Number(c.salario) : 0,
+      c.classificacao_salario,
+      formatCNPJ(cnpj),
+    ]);
+    if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
+    row.getCell(5).numFmt = "#,##0.00";
+  });
+
+  return await workbook.xlsx.writeBuffer();
 };
 
 export default function Operacional() {
@@ -104,10 +161,11 @@ export default function Operacional() {
   const [importarDialogOpen, setImportarDialogOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Estado para seleção em massa (faturamento)
+  // Estado para seleção em massa
   const [selectedLotesIds, setSelectedLotesIds] = useState<Set<string>>(new Set());
   const [confirmFaturarMassaDialog, setConfirmFaturarMassaDialog] = useState(false);
   const [faturandoMassa, setFaturandoMassa] = useState(false);
+  const [baixandoMassa, setBaixandoMassa] = useState(false); // Novo estado
 
   // --- QUERY ---
   const { data: lotes = [], isLoading } = useQuery({
@@ -130,9 +188,7 @@ export default function Operacional() {
     },
   });
 
-  // Extrair competências únicas dos lotes existentes
   const competencias = [...new Set(lotes.map((l) => l.competencia))].sort((a, b) => {
-    // Ordenar por data (mais recente primeiro)
     const parseCompetencia = (comp: string) => {
       const meses: Record<string, number> = {
         Janeiro: 0,
@@ -154,7 +210,6 @@ export default function Operacional() {
     return parseCompetencia(b).getTime() - parseCompetencia(a).getTime();
   });
 
-  // --- Lógica de Filtragem e Ordenação Dinâmica ---
   const filteredLotes = lotes
     .filter((l) => {
       const matchSearch = l.empresa?.nome?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -178,108 +233,43 @@ export default function Operacional() {
       case "pendencia":
         return filteredLotes.filter((l) => l.status === "com_pendencia");
       case "concluido":
-        // Apenas lotes concluídos (não faturados) aparecem em "Prontos"
         return filteredLotes.filter((l) => l.status === "concluido");
       default:
         return [];
     }
   };
 
-  // --- MUTAÇÃO DE ENVIO COM GERAÇÃO DE EXCEL E UPLOAD ---
+  // --- MUTAÇÃO DE ENVIO ---
   const enviarNovoMutation = useMutation({
     mutationFn: async (lote: LoteOperacional) => {
       setActionLoading(lote.id);
-
       try {
         toast.info("Gerando arquivo e enviando para nuvem...");
-
-        // 1. Buscar TODOS os dados (Bypass limit 1000)
         const itens = await fetchAllColaboradores(lote.id);
-
         if (!itens || itens.length === 0) throw new Error("Lote vazio, impossível enviar.");
 
-        // 2. Filtrar Duplicatas (Manter apenas o mais recente)
-        const cpfsProcessados = new Set();
-        const itensUnicos = itens.filter((item) => {
-          const cpfLimpo = item.cpf.replace(/\D/g, "");
-          if (cpfsProcessados.has(cpfLimpo)) return false;
-          cpfsProcessados.add(cpfLimpo);
-          return true;
-        });
-        itensUnicos.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
-
-        // 3. Gerar o Excel em Memória
-        let cnpj = (lote.empresa as any)?.cnpj || "";
-        if (!cnpj && lote.empresa_id) {
-          const { data: emp } = await supabase.from("empresas").select("cnpj").eq("id", lote.empresa_id).single();
-          if (emp) cnpj = emp.cnpj;
-        }
-
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet("Relação de Vidas"); // Alterado aqui
-
-        // Cabeçalhos alterados
-        const headers = ["NOME", "SEXO", "CPF", "DATA NASCIMENTO", "SALARIO", "CLASSIFICAÇÃO SALARIO", "CNPJ"];
-        const headerRow = worksheet.addRow(headers);
-
-        // Estilização
-        const COL_WIDTH = 37.11;
-        worksheet.columns = headers.map(() => ({ width: COL_WIDTH }));
-        headerRow.eachCell((cell) => {
-          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
-          cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
-          cell.alignment = { horizontal: "center" };
-        });
-
-        itensUnicos.forEach((c: any) => {
-          let dataNascDate = null;
-          if (c.data_nascimento) {
-            const parts = c.data_nascimento.split("-");
-            if (parts.length === 3)
-              dataNascDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-          }
-          const row = worksheet.addRow([
-            c.nome?.toUpperCase(),
-            c.sexo,
-            formatCPF(c.cpf),
-            dataNascDate,
-            c.salario ? Number(c.salario) : 0,
-            c.classificacao_salario,
-            formatCNPJ(cnpj),
-          ]);
-          if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
-          row.getCell(5).numFmt = "#,##0.00";
-        });
-
-        const buffer = await workbook.xlsx.writeBuffer();
+        const buffer = await gerarBufferExcel(lote, itens);
         const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 
-        // 4. Personalizar Nome do Arquivo
-        const nomeEmpresaRaw = lote.empresa?.nome || "EMPRESA";
-        const nomeEmpresaLimpo = nomeEmpresaRaw
+        const nomeEmpresaLimpo = (lote.empresa?.nome || "EMPRESA")
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
           .replace(/[^a-zA-Z0-9\s]/g, "")
           .trim()
           .replace(/\s+/g, "_")
           .toUpperCase();
-
         const competenciaLimpa = lote.competencia.replace(/\//g, "-");
         const fileName = `lotes/LISTA_${nomeEmpresaLimpo}_${competenciaLimpa}.xlsx`;
 
-        // 5. Upload para o Supabase Storage
         const { error: uploadError } = await supabase.storage
           .from("contratos")
           .upload(fileName, blob, { upsert: true });
-
         if (uploadError) throw uploadError;
 
-        // 6. Pegar a URL Pública
         const {
           data: { publicUrl },
         } = supabase.storage.from("contratos").getPublicUrl(fileName);
 
-        // 7. Atualizar Banco de Dados (Isso dispara o Webhook)
         const { error: updateError } = await supabase
           .from("lotes_mensais")
           .update({
@@ -331,16 +321,74 @@ export default function Operacional() {
     },
   });
 
-  // --- MUTAÇÃO DE FATURAMENTO EM MASSA ---
-  const handleFaturarMassa = async () => {
+  // --- NOVA FUNÇÃO: BAIXAR EM MASSA (ZIP) ---
+  const handleBaixarEmMassa = async () => {
     if (selectedLotesIds.size === 0) return;
 
+    setBaixandoMassa(true);
+    toast.info("Iniciando geração do ZIP. Isso pode levar alguns instantes...");
+
+    try {
+      const zip = new JSZip();
+      const lotesParaBaixar = getLotesByTab("concluido").filter((l) => selectedLotesIds.has(l.id));
+
+      let processados = 0;
+
+      for (const lote of lotesParaBaixar) {
+        try {
+          // 1. Buscar Itens
+          const itens = await fetchAllColaboradores(lote.id);
+
+          if (itens && itens.length > 0) {
+            // 2. Gerar Buffer do Excel
+            const buffer = await gerarBufferExcel(lote, itens);
+
+            // 3. Definir nome do arquivo
+            const nomeEmpresa = (lote.empresa?.nome || "EMPRESA").replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+            const competencia = lote.competencia.replace("/", "-");
+            const fileName = `SEGURADORA_${nomeEmpresa}_${competencia}.xlsx`;
+
+            // 4. Adicionar ao ZIP
+            zip.file(fileName, buffer);
+            processados++;
+          }
+        } catch (err) {
+          console.error(`Erro ao gerar arquivo para lote ${lote.id}`, err);
+        }
+      }
+
+      if (processados === 0) {
+        toast.warning("Nenhum arquivo válido gerado.");
+        setBaixandoMassa(false);
+        return;
+      }
+
+      // 5. Gerar o arquivo ZIP final e baixar
+      const zipContent = await zip.generateAsync({ type: "blob" });
+      const url = window.URL.createObjectURL(zipContent);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Lotes_Prontos_${new Date().getTime()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success(`${processados} arquivos baixados em ZIP!`);
+    } catch (error: any) {
+      console.error(error);
+      toast.error("Erro ao gerar ZIP: " + error.message);
+    } finally {
+      setBaixandoMassa(false);
+    }
+  };
+
+  const handleFaturarMassa = async () => {
+    if (selectedLotesIds.size === 0) return;
     setFaturandoMassa(true);
     const lotesParaFaturar = getLotesByTab("concluido").filter((l) => selectedLotesIds.has(l.id));
-
     let sucesso = 0;
     let erros = 0;
-
     for (const lote of lotesParaFaturar) {
       try {
         const vidas = (lote.total_colaboradores || 0) - (lote.total_reprovados || 0);
@@ -356,25 +404,17 @@ export default function Operacional() {
         erros++;
       }
     }
-
     setFaturandoMassa(false);
     setConfirmFaturarMassaDialog(false);
     setSelectedLotesIds(new Set());
     queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
-
-    if (erros === 0) {
-      toast.success(`${sucesso} lote(s) faturado(s) com sucesso!`);
-    } else {
-      toast.warning(`${sucesso} faturado(s), ${erros} com erro.`);
-    }
+    if (erros === 0) toast.success(`${sucesso} lote(s) faturado(s) com sucesso!`);
+    else toast.warning(`${sucesso} faturado(s), ${erros} com erro.`);
   };
 
-  // --- MUTAÇÃO DE RESOLVER PENDÊNCIA ---
   const resolverPendenciaMutation = useMutation({
     mutationFn: async (lote: LoteOperacional) => {
       setActionLoading(lote.id);
-
-      // 1. Buscar lote destino (mesma empresa, obra, competência)
       let query = supabase
         .from("lotes_mensais")
         .select("id, total_colaboradores")
@@ -383,51 +423,32 @@ export default function Operacional() {
         .in("status", ["concluido", "faturado"])
         .neq("id", lote.id);
 
-      // Tratar obra_id null vs valor
-      if (lote.obra?.id) {
-        query = query.eq("obra_id", lote.obra.id);
-      } else {
-        query = query.is("obra_id", null);
-      }
+      if (lote.obra?.id) query = query.eq("obra_id", lote.obra.id);
+      else query = query.is("obra_id", null);
 
       const { data: loteDestino, error: fetchError } = await query.maybeSingle();
-
       if (fetchError) throw fetchError;
-      if (!loteDestino) {
-        throw new Error(
-          "Nenhum lote encontrado para mesclar. Verifique se existe um lote concluído ou faturado da mesma empresa, obra e competência.",
-        );
-      }
+      if (!loteDestino) throw new Error("Nenhum lote encontrado para mesclar.");
 
-      // 2. Migrar colaboradores_lote do lote pendente para o lote destino E marcar como aprovados
       const { error: migrateError } = await supabase
         .from("colaboradores_lote")
-        .update({
-          lote_id: loteDestino.id,
-          status_seguradora: "aprovado", // Ao resolver, o colaborador é aprovado
-          motivo_reprovacao_seguradora: null, // Limpa o motivo de reprovação
-        })
+        .update({ lote_id: loteDestino.id, status_seguradora: "aprovado", motivo_reprovacao_seguradora: null })
         .eq("lote_id", lote.id);
-
       if (migrateError) throw migrateError;
 
-      // 3. Incrementar vidas no lote destino
       const novoTotal = (loteDestino.total_colaboradores || 0) + (lote.total_reprovados || 0);
       const { error: updateError } = await supabase
         .from("lotes_mensais")
         .update({ total_colaboradores: novoTotal })
         .eq("id", loteDestino.id);
-
       if (updateError) throw updateError;
 
-      // 4. Excluir o lote pendente (agora sem colaboradores)
       const { error: deleteError } = await supabase.from("lotes_mensais").delete().eq("id", lote.id);
-
       if (deleteError) throw deleteError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
-      toast.success("Pendência resolvida! Vidas incrementadas no lote original.");
+      toast.success("Pendência resolvida!");
       setConfirmResolverDialog(false);
       setActionLoading(null);
       setSelectedLote(null);
@@ -438,14 +459,10 @@ export default function Operacional() {
     },
   });
 
-  // --- MUTAÇÃO DE REJEITAR PENDÊNCIA ---
   const rejeitarPendenciaMutation = useMutation({
     mutationFn: async (lote: LoteOperacional) => {
       setActionLoading(lote.id);
-
-      // Excluir o lote pendente diretamente
       const { error } = await supabase.from("lotes_mensais").delete().eq("id", lote.id);
-
       if (error) throw error;
     },
     onSuccess: () => {
@@ -461,21 +478,16 @@ export default function Operacional() {
     },
   });
 
-  // --- MUTAÇÃO DE ENVIAR PENDÊNCIA PARA CLIENTE ---
   const enviarPendenciaClienteMutation = useMutation({
     mutationFn: async (lote: LoteOperacional) => {
       setActionLoading(lote.id);
-
-      // Buscar dados dos colaboradores reprovados
       const { data: reprovados, error: fetchError } = await supabase
         .from("colaboradores_lote")
         .select("nome, cpf, motivo_reprovacao_seguradora")
         .eq("lote_id", lote.id)
         .eq("status_seguradora", "reprovado");
-
       if (fetchError) throw fetchError;
 
-      // Criar notificação que dispara o webhook
       const { error: notifError } = await supabase.rpc("criar_notificacao", {
         p_tipo: "admin_gerencia_aprovacoes",
         p_empresa_id: lote.empresa_id,
@@ -487,101 +499,33 @@ export default function Operacional() {
           total_aprovados: (lote.total_colaboradores || 0) - (lote.total_reprovados || 0),
           total_reprovados: lote.total_reprovados || 0,
           reprovados:
-            reprovados?.map((r) => ({
-              nome: r.nome,
-              cpf: r.cpf,
-              motivo: r.motivo_reprovacao_seguradora,
-            })) || [],
+            reprovados?.map((r) => ({ nome: r.nome, cpf: r.cpf, motivo: r.motivo_reprovacao_seguradora })) || [],
           nome_obra: lote.obra?.nome || "Sem obra especificada",
         },
       });
-
       if (notifError) throw notifError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
-      toast.success("Notificação de pendência enviada ao cliente!");
+      toast.success("Notificação enviada!");
       setActionLoading(null);
       setSelectedLote(null);
     },
     onError: (e: any) => {
-      toast.error("Erro ao enviar notificação: " + e.message);
+      toast.error("Erro: " + e.message);
       setActionLoading(null);
     },
   });
 
   const handleDownloadLote = async (lote: LoteOperacional) => {
     try {
-      toast.info("Preparando download... (Isso pode demorar um pouco para lotes grandes)");
-
-      // 1. Busca todos os itens (usando a função de loop para bypassar limite de 1000)
+      toast.info("Preparando download...");
       const itens = await fetchAllColaboradores(lote.id);
-
       if (!itens || itens.length === 0) {
-        toast.warning("Não há colaboradores neste lote para baixar.");
+        toast.warning("Não há colaboradores para baixar.");
         return;
       }
-
-      // 2. FILTRAGEM DE DUPLICATAS
-      const cpfsProcessados = new Set();
-      const itensUnicos = itens.filter((item: any) => {
-        const cpfLimpo = item.cpf.replace(/\D/g, "");
-        if (cpfsProcessados.has(cpfLimpo)) {
-          return false;
-        }
-        cpfsProcessados.add(cpfLimpo);
-        return true;
-      });
-
-      // 3. Ordenação Alfabética para o Excel
-      itensUnicos.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
-
-      let cnpj = (lote.empresa as any)?.cnpj || "";
-      if (!cnpj && lote.empresa_id) {
-        const { data: emp } = await supabase.from("empresas").select("cnpj").eq("id", lote.empresa_id).single();
-        if (emp) cnpj = emp.cnpj;
-      }
-      cnpj = cnpj.replace(/\D/g, "");
-
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Relação de Vidas"); // Alterado aqui
-
-      // Cabeçalhos alterados
-      const headers = ["NOME", "SEXO", "CPF", "DATA NASCIMENTO", "SALARIO", "CLASSIFICAÇÃO SALARIO", "CNPJ"];
-      const headerRow = worksheet.addRow(headers);
-
-      const COL_WIDTH = 37.11;
-      worksheet.columns = headers.map(() => ({ width: COL_WIDTH }));
-
-      headerRow.eachCell((cell) => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
-        cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
-        cell.alignment = { horizontal: "center" };
-      });
-
-      itensUnicos.forEach((c: any) => {
-        let dataNascDate = null;
-        if (c.data_nascimento) {
-          const parts = c.data_nascimento.split("-");
-          if (parts.length === 3)
-            dataNascDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        }
-
-        const row = worksheet.addRow([
-          c.nome ? c.nome.toUpperCase() : "",
-          c.sexo || "Masculino",
-          c.cpf ? formatCPF(c.cpf) : "",
-          dataNascDate,
-          c.salario ? Number(c.salario) : 0,
-          c.classificacao_salario || "",
-          formatCNPJ(cnpj),
-        ]);
-
-        if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
-        row.getCell(5).numFmt = "#,##0.00";
-      });
-
-      const buffer = await workbook.xlsx.writeBuffer();
+      const buffer = await gerarBufferExcel(lote, itens);
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -601,10 +545,7 @@ export default function Operacional() {
     if (tab === "entrada") setConfirmEnviarDialog(true);
     else if (tab === "seguradora") setProcessarDialogOpen(true);
     else if (tab === "concluido") setConfirmFaturarDialog(true);
-    else if (tab === "pendencia") {
-      // Enviar notificação de pendência para o cliente via webhook
-      enviarPendenciaClienteMutation.mutate(lote);
-    }
+    else if (tab === "pendencia") enviarPendenciaClienteMutation.mutate(lote);
   };
 
   const handleResolve = (lote: LoteOperacional) => {
@@ -619,7 +560,6 @@ export default function Operacional() {
 
   const handleConfirmarEnvio = () => {
     if (!selectedLote) return;
-    // IMPORTANTE: Agora passamos o objeto completo, pois precisamos do ID da empresa para o nome do arquivo
     enviarNovoMutation.mutate(selectedLote);
   };
 
@@ -642,7 +582,6 @@ export default function Operacional() {
           </div>
         </div>
 
-        {/* Controles: Busca, Ordenação e Importação */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
           <div className="relative w-full md:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -764,11 +703,19 @@ export default function Operacional() {
         </TabsContent>
         <TabsContent value="concluido" className="mt-6">
           <TabCard title="Prontos para Faturamento" icon={CheckCircle2} color="text-green-500">
-            {/* Botão de Faturar em Massa */}
+            {/* Barra de Ações em Massa */}
             {selectedLotesIds.size > 0 && (
-              <div className="mb-4 flex items-center gap-3 p-3 bg-muted rounded-lg">
-                <span className="text-sm font-medium">{selectedLotesIds.size} lote(s) selecionado(s)</span>
-                <Button size="sm" onClick={() => setConfirmFaturarMassaDialog(true)} disabled={faturandoMassa}>
+              <div className="mb-4 flex items-center flex-wrap gap-3 p-3 bg-muted rounded-lg border border-border">
+                <span className="text-sm font-medium w-full sm:w-auto">
+                  {selectedLotesIds.size} lote(s) selecionado(s)
+                </span>
+
+                {/* Botão de Faturar */}
+                <Button
+                  size="sm"
+                  onClick={() => setConfirmFaturarMassaDialog(true)}
+                  disabled={faturandoMassa || baixandoMassa}
+                >
                   {faturandoMassa ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
@@ -776,7 +723,29 @@ export default function Operacional() {
                   )}
                   Faturar Selecionados
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setSelectedLotesIds(new Set())}>
+
+                {/* Botão de Baixar ZIP */}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleBaixarEmMassa}
+                  disabled={faturandoMassa || baixandoMassa}
+                  className="bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {baixandoMassa ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Archive className="h-4 w-4 mr-2" />
+                  )}
+                  Baixar Todos (ZIP)
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedLotesIds(new Set())}
+                  disabled={baixandoMassa}
+                >
                   Limpar Seleção
                 </Button>
               </div>
@@ -839,7 +808,7 @@ export default function Operacional() {
             <AlertDialogTitle>Resolver Pendência?</AlertDialogTitle>
             <AlertDialogDescription>
               As <strong>{selectedLote?.total_reprovados || 0} vidas</strong> pendentes serão adicionadas ao lote
-              original da empresa <strong>{selectedLote?.empresa?.nome}</strong> ({selectedLote?.competencia}).
+              original.
               <br />
               <br />O lote pendente será excluído após a operação.
             </AlertDialogDescription>
@@ -861,8 +830,7 @@ export default function Operacional() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Lote Pendente?</AlertDialogTitle>
             <AlertDialogDescription>
-              O lote pendente da empresa <strong>{selectedLote?.empresa?.nome}</strong> ({selectedLote?.competencia})
-              será excluído permanentemente.
+              O lote pendente será excluído permanentemente.
               <br />
               <br />
               As <strong>{selectedLote?.total_reprovados || 0} vidas</strong> não serão adicionadas a nenhum lote.
@@ -880,7 +848,6 @@ export default function Operacional() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog de Faturamento em Massa */}
       <AlertDialog open={confirmFaturarMassaDialog} onOpenChange={setConfirmFaturarMassaDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -914,6 +881,7 @@ export default function Operacional() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <AdminImportarLoteDialog open={importarDialogOpen} onOpenChange={setImportarDialogOpen} />
 
       {selectedLote && (
