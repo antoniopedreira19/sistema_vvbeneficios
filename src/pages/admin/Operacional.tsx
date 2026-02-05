@@ -5,7 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Building2, Clock, AlertTriangle, CheckCircle2, Inbox, Upload, Search, ArrowUpDown, Loader2, CreditCard } from "lucide-react";
+import {
+  Building2,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  Inbox,
+  Upload,
+  Search,
+  ArrowUpDown,
+  Loader2,
+  CreditCard,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -205,16 +216,8 @@ export default function Operacional() {
         }
 
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet("Lista Seguradora");
-        const headers = [
-          "NOME COMPLETO",
-          "SEXO",
-          "CPF",
-          "DATA NASCIMENTO",
-          "SALARIO",
-          "CLASSIFICACAO SALARIAL",
-          "CNPJ DA EMPRESA",
-        ];
+        const worksheet = workbook.addWorksheet("Relação de Vidas");
+        const headers = ["NOME", "SEXO", "CPF", "DATA NASCIMENTO", "SALARIO", "CLASSIFICAÇÃO SALARIO", "CNPJ"];
         const headerRow = worksheet.addRow(headers);
 
         // Estilização
@@ -329,10 +332,10 @@ export default function Operacional() {
   // --- MUTAÇÃO DE FATURAMENTO EM MASSA ---
   const handleFaturarMassa = async () => {
     if (selectedLotesIds.size === 0) return;
-    
+
     setFaturandoMassa(true);
     const lotesParaFaturar = getLotesByTab("concluido").filter((l) => selectedLotesIds.has(l.id));
-    
+
     let sucesso = 0;
     let erros = 0;
 
@@ -768,14 +771,8 @@ export default function Operacional() {
             {/* Botão de Faturar em Massa */}
             {selectedLotesIds.size > 0 && (
               <div className="mb-4 flex items-center gap-3 p-3 bg-muted rounded-lg">
-                <span className="text-sm font-medium">
-                  {selectedLotesIds.size} lote(s) selecionado(s)
-                </span>
-                <Button
-                  size="sm"
-                  onClick={() => setConfirmFaturarMassaDialog(true)}
-                  disabled={faturandoMassa}
-                >
+                <span className="text-sm font-medium">{selectedLotesIds.size} lote(s) selecionado(s)</span>
+                <Button size="sm" onClick={() => setConfirmFaturarMassaDialog(true)} disabled={faturandoMassa}>
                   {faturandoMassa ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
@@ -783,11 +780,7 @@ export default function Operacional() {
                   )}
                   Faturar Selecionados
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setSelectedLotesIds(new Set())}
-                >
+                <Button size="sm" variant="outline" onClick={() => setSelectedLotesIds(new Set())}>
                   Limpar Seleção
                 </Button>
               </div>
@@ -898,13 +891,16 @@ export default function Operacional() {
             <AlertDialogTitle>Faturar {selectedLotesIds.size} Lote(s)?</AlertDialogTitle>
             <AlertDialogDescription>
               Você está prestes a faturar <strong>{selectedLotesIds.size} lote(s)</strong> selecionado(s).
-              <br /><br />
-              Valor total estimado: <strong>R$ {
-                getLotesByTab("concluido")
+              <br />
+              <br />
+              Valor total estimado:{" "}
+              <strong>
+                R${" "}
+                {getLotesByTab("concluido")
                   .filter((l) => selectedLotesIds.has(l.id))
                   .reduce((acc, l) => acc + ((l.total_colaboradores || 0) - (l.total_reprovados || 0)) * 50, 0)
-                  .toLocaleString("pt-BR")
-              }</strong>
+                  .toLocaleString("pt-BR")}
+              </strong>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
