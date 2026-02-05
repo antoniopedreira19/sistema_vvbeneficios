@@ -134,12 +134,15 @@ export function LotesTable({
         );
         break;
       case "faturar":
-        MainButton = (
-          <Button size="sm" variant="default" onClick={() => onAction(lote)} disabled={isActionLoading}>
-            {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4 mr-1" />}
-            Faturar
-          </Button>
-        );
+        // Se estiver no modo de seleção, não mostra o botão individual
+        if (!selectable) {
+          MainButton = (
+            <Button size="sm" variant="default" onClick={() => onAction(lote)} disabled={isActionLoading}>
+              {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4 mr-1" />}
+              Faturar
+            </Button>
+          );
+        }
         break;
       case "resolver_pendencia":
         MainButton = (
