@@ -22,7 +22,13 @@ const ProtectedRoute = ({ children, requireAdmin = false, requireAdminOnly = fal
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (!roleLoading) {
+    if (!roleLoading && role) {
+      // Usuário inativo é redirecionado para tela de bloqueio
+      if (role === "inativo") {
+        navigate("/usuario-inativo");
+        return;
+      }
+
       if (requireAdminOnly && role !== "admin") {
         navigate("/");
       } else if (requireAdmin && role !== "admin" && role !== "operacional") {

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
-type UserRole = "admin" | "cliente" | "operacional" | "financeiro" | null;
+type UserRole = "admin" | "cliente" | "operacional" | "financeiro" | "inativo" | null;
 
 interface Profile {
   id: string;
@@ -145,6 +145,7 @@ export const useUserRole = () => {
     isCliente: role === "cliente",
     isFinanceiro: role === "financeiro",
     isAdminOrOperacional: role === "admin" || role === "operacional",
+    isInativo: role === "inativo",
     empresasVinculadas,
     empresaAtiva,
     setEmpresaAtiva,
