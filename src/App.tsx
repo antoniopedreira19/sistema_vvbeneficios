@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import UsuarioInativo from "./pages/UsuarioInativo";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 // Admin Pages
@@ -49,6 +50,7 @@ const App = () => (
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<Auth />} />
+        <Route path="/usuario-inativo" element={<UsuarioInativo />} />
         <Route
           path="/"
           element={

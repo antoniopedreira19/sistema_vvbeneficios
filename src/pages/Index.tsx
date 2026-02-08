@@ -10,6 +10,7 @@ const Index = () => {
     role, 
     isAdminOrOperacional, 
     isFinanceiro, 
+    isInativo,
     loading: roleLoading,
     empresasLoading,
     empresasVinculadas,
@@ -28,6 +29,11 @@ const Index = () => {
     if (!authLoading && !roleLoading && !empresasLoading && user && role) {
       const isFirstLogin = user.user_metadata?.first_login !== false;
       
+      if (isInativo) {
+        navigate("/usuario-inativo");
+        return;
+      }
+
       if (role === "cliente" && isFirstLogin) {
         setShowPasswordDialog(true);
         return;
@@ -48,7 +54,7 @@ const Index = () => {
         navigate("/cliente/dashboard");
       }
     }
-  }, [user, role, isAdminOrOperacional, isFinanceiro, authLoading, roleLoading, empresasLoading, navigate, hasMultipleEmpresas, empresasVinculadas]);
+  }, [user, role, isAdminOrOperacional, isFinanceiro, isInativo, authLoading, roleLoading, empresasLoading, navigate, hasMultipleEmpresas, empresasVinculadas]);
 
   const handlePasswordChanged = () => {
     setShowPasswordDialog(false);

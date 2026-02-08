@@ -39,7 +39,7 @@ serve(async (req) => {
       )
     }
 
-    if (!['admin', 'cliente', 'operacional', 'financeiro'].includes(role)) {
+    if (!['admin', 'cliente', 'operacional', 'financeiro', 'inativo'].includes(role)) {
       console.error('Invalid role:', role)
       return new Response(
         JSON.stringify({ error: 'Role inválida' }),
