@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings, Search, Users, Trash2, Pencil } from "lucide-react";
+import { Settings, Search, Users, Trash2, Pencil, UserX, UserCheck } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,7 @@ const ROLE_CONFIG: Record<string, { label: string; className: string }> = {
   operacional: { label: "Operacional", className: "bg-blue-100 text-blue-700 border-blue-200" },
   financeiro: { label: "Financeiro", className: "bg-purple-100 text-purple-700 border-purple-200" },
   cliente: { label: "Cliente", className: "bg-green-100 text-green-700 border-green-200" },
+  inativo: { label: "Inativo", className: "bg-gray-100 text-gray-500 border-gray-300" },
 };
 
 const Configuracoes = () => {
@@ -65,6 +66,7 @@ const Configuracoes = () => {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [usuarioToDelete, setUsuarioToDelete] = useState<Usuario | null>(null);
   const [usuarioToEdit, setUsuarioToEdit] = useState<Usuario | null>(null);
+  const [usuarioToToggle, setUsuarioToToggle] = useState<Usuario | null>(null);
   const [criarUsuariosOpen, setCriarUsuariosOpen] = useState(false);
 
   // Fetch users with roles and companies
@@ -119,6 +121,38 @@ const Configuracoes = () => {
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao excluir usuário");
+    },
+  });
+
+  // Toggle inativo mutation
+  const toggleInativoMutation = useMutation({
+    mutationFn: async ({ userId, currentRole }: { userId: string; currentRole: string | null }) => {
+      const isCurrentlyInativo = currentRole === "inativo";
+      
+      if (isCurrentlyInativo) {
+        // Reativar: precisamos saber a role anterior - vamos definir como "cliente" por padrão
+        const { error } = await supabase
+          .from("user_roles")
+          .update({ role: "cliente" as any })
+          .eq("user_id", userId);
+        if (error) throw error;
+      } else {
+        // Inativar: mudar a role para "inativo"
+        const { error } = await supabase
+          .from("user_roles")
+          .update({ role: "inativo" as any })
+          .eq("user_id", userId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      const isReactivating = variables.currentRole === "inativo";
+      toast.success(isReactivating ? "Usuário reativado com sucesso!" : "Usuário inativado com sucesso!");
+      setUsuarioToToggle(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao alterar status do usuário");
     },
   });
 
@@ -192,6 +226,7 @@ const Configuracoes = () => {
                     <SelectItem value="operacional">Operacional</SelectItem>
                     <SelectItem value="financeiro">Financeiro</SelectItem>
                     <SelectItem value="cliente">Cliente</SelectItem>
+                    <SelectItem value="inativo">Inativo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -268,14 +303,25 @@ const Configuracoes = () => {
                                   size="icon"
                                   className="h-8 w-8"
                                   onClick={() => setUsuarioToEdit(usuario)}
+                                  title="Editar"
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  className={`h-8 w-8 ${usuario.role === "inativo" ? "text-green-600 hover:text-green-700" : "text-orange-500 hover:text-orange-600"}`}
+                                  onClick={() => setUsuarioToToggle(usuario)}
+                                  title={usuario.role === "inativo" ? "Reativar usuário" : "Inativar usuário"}
+                                >
+                                  {usuario.role === "inativo" ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   className="h-8 w-8 text-destructive hover:text-destructive"
                                   onClick={() => setUsuarioToDelete(usuario)}
+                                  title="Excluir"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -310,6 +356,48 @@ const Configuracoes = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteUserMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Toggle Inativo Confirmation Dialog */}
+      <AlertDialog open={!!usuarioToToggle} onOpenChange={() => setUsuarioToToggle(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {usuarioToToggle?.role === "inativo" ? "Reativar usuário" : "Inativar usuário"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {usuarioToToggle?.role === "inativo" ? (
+                <>
+                  Deseja reativar o usuário <strong>{usuarioToToggle?.nome}</strong>? 
+                  Ele será definido como <strong>Cliente</strong> e poderá acessar o sistema novamente.
+                </>
+              ) : (
+                <>
+                  Deseja inativar o usuário <strong>{usuarioToToggle?.nome}</strong>? 
+                  Ele não conseguirá mais acessar o sistema até ser reativado.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => usuarioToToggle && toggleInativoMutation.mutate({ 
+                userId: usuarioToToggle.id, 
+                currentRole: usuarioToToggle.role 
+              })}
+              className={usuarioToToggle?.role === "inativo" 
+                ? "bg-green-600 text-white hover:bg-green-700" 
+                : "bg-orange-500 text-white hover:bg-orange-600"}
+            >
+              {toggleInativoMutation.isPending 
+                ? "Processando..." 
+                : usuarioToToggle?.role === "inativo" 
+                  ? "Reativar" 
+                  : "Inativar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
