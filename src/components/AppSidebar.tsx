@@ -93,21 +93,13 @@ export function AppSidebar() {
   };
   return <Sidebar collapsible="icon" className="border-r-0">
       <SidebarHeader className={`border-b border-sidebar-border py-4 ${collapsed ? 'px-0' : 'px-4'}`}>
-        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-center'}`}>
           {collapsed ?
-        // Logo VV minimalista quando colapsado - centralizado
-        <div className="flex items-center justify-center w-full">
+            <div className="flex items-center justify-center w-full">
               <img alt="VV" className="h-6 w-auto object-contain" src="/lovable-uploads/b835bced-c76e-4899-855c-4a4442f7f5bc.png" />
             </div> :
-        // Logo completo quando expandido
-        <div className="flex items-center gap-3">
-              <div className="bg-white rounded-xl p-2 shadow-sm mx-[60px]">
-                <img src={logoVV} alt="VV Benefícios" className="h-8 w-auto object-contain" />
-              </div>
-              <div className="min-w-0">
-                
-                {isCliente && empresaAtiva && <span className="text-xs text-sidebar-foreground/70 truncate">{empresaAtiva.nome}</span>}
-              </div>
+            <div className="bg-white rounded-xl p-2 shadow-sm">
+              <img src={logoVV} alt="VV Benefícios" className="h-8 w-auto object-contain" />
             </div>}
         </div>
       </SidebarHeader>
