@@ -35,10 +35,16 @@ interface NotaFiscal {
     valor_total: number;
   } | null;
 }
+const getCompetenciaAtual = () => {
+  const now = new Date();
+  const mes = now.toLocaleString("pt-BR", { month: "long" });
+  return `${mes.charAt(0).toUpperCase() + mes.slice(1)}/${now.getFullYear()}`;
+};
+
 const NotasFiscais = () => {
   const [notasFiscais, setNotasFiscais] = useState<NotaFiscal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mesFilter, setMesFilter] = useState<string>("todos");
+  const [mesFilter, setMesFilter] = useState<string>(getCompetenciaAtual());
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [nfFilter, setNfFilter] = useState<string>("todos");
   const [boletoFilter, setBoletoFilter] = useState<string>("todos");
