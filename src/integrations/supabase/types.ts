@@ -515,6 +515,8 @@ export type Database = {
       }
       notas_fiscais: {
         Row: {
+          boleto_gerado: boolean
+          boleto_url: string | null
           competencia: string
           created_at: string
           empresa_id: string
@@ -528,6 +530,8 @@ export type Database = {
           valor_total: number
         }
         Insert: {
+          boleto_gerado?: boolean
+          boleto_url?: string | null
           competencia: string
           created_at?: string
           empresa_id: string
@@ -541,6 +545,8 @@ export type Database = {
           valor_total?: number
         }
         Update: {
+          boleto_gerado?: boolean
+          boleto_url?: string | null
           competencia?: string
           created_at?: string
           empresa_id?: string
