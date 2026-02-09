@@ -101,13 +101,11 @@ export function AppSidebar() {
             </div> :
         // Logo completo quando expandido
         <div className="flex items-center gap-3">
-              <div className="bg-white rounded-xl p-2 shadow-sm">
+              <div className="bg-white rounded-xl p-2 shadow-sm mx-[60px]">
                 <img src={logoVV} alt="VV Benefícios" className="h-8 w-auto object-contain" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-sidebar-primary font-medium tracking-wide">
-                  {isMasterAdmin ? "Master Admin" : isAdmin ? "Administrador" : isOperacional ? "Operacional" : isFinanceiro ? "Financeiro" : "Cliente"}
-                </p>
+                
                 {isCliente && empresaAtiva && <p className="text-[10px] text-sidebar-foreground/60 truncate max-w-[140px]" title={empresaAtiva.nome}>
                     {empresaAtiva.nome}
                   </p>}
