@@ -9,7 +9,8 @@ import {
   ChevronRight,
   Building2,
   Calendar,
-  ExternalLink
+  ExternalLink,
+  Download
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCPF, formatCNPJ } from "@/lib/validators";
+import ExcelJS from "exceljs";
+import { toast } from "sonner";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -164,6 +168,106 @@ const Historico = () => {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   };
 
+  const handleDownloadLista = async (lote: any) => {
+    try {
+      toast.info("Preparando download...");
+
+      const { data: itens, error } = await supabase
+        .from("colaboradores_lote")
+        .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
+        .eq("lote_id", lote.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (!itens || itens.length === 0) {
+        toast.warning("Não há colaboradores neste lote para baixar.");
+        return;
+      }
+
+      const cpfsProcessados = new Set<string>();
+      const itensUnicos = itens.filter((item) => {
+        const cpfLimpo = item.cpf.replace(/\D/g, "");
+        if (cpfsProcessados.has(cpfLimpo)) return false;
+        cpfsProcessados.add(cpfLimpo);
+        return true;
+      });
+
+      itensUnicos.sort((a, b) => a.nome.localeCompare(b.nome));
+
+      let cnpj = "";
+      if (empresaId) {
+        const { data: emp } = await supabase
+          .from("empresas")
+          .select("cnpj")
+          .eq("id", empresaId)
+          .single();
+        if (emp) cnpj = emp.cnpj;
+      }
+      cnpj = cnpj.replace(/\D/g, "");
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Lista Seguradora");
+      const headers = [
+        "NOME COMPLETO",
+        "SEXO",
+        "CPF",
+        "DATA NASCIMENTO",
+        "SALARIO",
+        "CLASSIFICACAO SALARIAL",
+        "CNPJ DA EMPRESA",
+      ];
+      const headerRow = worksheet.addRow(headers);
+
+      const COL_WIDTH = 37.11;
+      worksheet.columns = headers.map(() => ({ width: COL_WIDTH }));
+
+      headerRow.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
+        cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+        cell.alignment = { horizontal: "center" };
+      });
+
+      itensUnicos.forEach((c) => {
+        let dataNascDate: Date | null = null;
+        if (c.data_nascimento) {
+          const parts = c.data_nascimento.split("-");
+          if (parts.length === 3)
+            dataNascDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        }
+
+        const row = worksheet.addRow([
+          c.nome ? c.nome.toUpperCase() : "",
+          c.sexo || "Masculino",
+          c.cpf ? formatCPF(c.cpf) : "",
+          dataNascDate,
+          c.salario ? Number(c.salario) : 0,
+          c.classificacao_salario || "",
+          formatCNPJ(cnpj),
+        ]);
+
+        if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
+        row.getCell(5).numFmt = "#,##0.00";
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `LISTA_${lote.competencia.replace("/", "-")}_${lote.obras?.nome?.replace(/[^a-zA-Z0-9]/g, "") || "geral"}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("Download concluído.");
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erro ao gerar planilha: " + e.message);
+    }
+  };
+
+
   if (profileLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -267,6 +371,7 @@ const Historico = () => {
                      <TableHead>Anexo NF</TableHead>
                      <TableHead>Boleto Gerado</TableHead>
                      <TableHead>Anexo Boleto</TableHead>
+                     <TableHead>Baixar Lista</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -344,12 +449,25 @@ const Historico = () => {
                               <span className="text-muted-foreground text-sm">-</span>
                             )}
                           </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadLista(lote);
+                              }}
+                              title="Baixar lista de vidas"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       );
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
                         Nenhuma lista enviada encontrada.
                       </TableCell>
                     </TableRow>
