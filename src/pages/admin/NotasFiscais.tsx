@@ -173,10 +173,12 @@ const NotasFiscais = () => {
     const nfEmitidas = mesFiltrado.filter(nf => nf.nf_emitida).length;
     const boletosGerados = mesFiltrado.filter(nf => nf.boleto_gerado).length;
     const pagos = mesFiltrado.filter(nf => nf.pago).length;
+    const boletosNaoPagos = boletosGerados - pagos;
     const pctNf = total > 0 ? Math.round((nfEmitidas / total) * 100) : 0;
     const pctBoleto = total > 0 ? Math.round((boletosGerados / total) * 100) : 0;
-    const pctPago = total > 0 ? Math.round((pagos / total) * 100) : 0;
-    return { total, nfEmitidas, boletosGerados, pagos, pctNf, pctBoleto, pctPago };
+    const pctPagoTotal = total > 0 ? Math.round((pagos / total) * 100) : 0;
+    const pctPagoBoleto = boletosGerados > 0 ? Math.round((pagos / boletosGerados) * 100) : 0;
+    return { total, nfEmitidas, boletosGerados, pagos, boletosNaoPagos, pctNf, pctBoleto, pctPagoTotal, pctPagoBoleto };
   }, [notasFiscais, mesFilter]);
   if (loading) {
     return <div className="flex items-center justify-center min-h-[400px]">
@@ -237,9 +239,20 @@ const NotasFiscais = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{kpis.pagos} <span className="text-sm font-normal text-muted-foreground">/ {kpis.total}</span></div>
-            <div className="flex items-center gap-2 mt-2">
-              <Progress value={kpis.pctPago} className="h-2" />
-              <span className="text-sm font-medium">{kpis.pctPago}%</span>
+            <div className="flex items-center gap-2 mt-1">
+              <Progress value={kpis.pctPagoTotal} className="h-2" />
+              <span className="text-sm font-medium">{kpis.pctPagoTotal}%</span>
+            </div>
+            <div className="mt-3 pt-3 border-t">
+              <p className="text-xs text-muted-foreground mb-1">Dos boletos gerados</p>
+              <div className="text-lg font-bold">{kpis.pagos} <span className="text-sm font-normal text-muted-foreground">/ {kpis.boletosGerados}</span></div>
+              <div className="flex items-center gap-2 mt-1">
+                <Progress value={kpis.pctPagoBoleto} className="h-2" />
+                <span className="text-sm font-medium">{kpis.pctPagoBoleto}%</span>
+              </div>
+              {kpis.boletosNaoPagos > 0 && (
+                <p className="text-xs text-destructive mt-1">{kpis.boletosNaoPagos} boleto(s) pendente(s)</p>
+              )}
             </div>
           </CardContent>
         </Card>
