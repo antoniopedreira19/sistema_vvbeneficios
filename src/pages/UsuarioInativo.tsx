@@ -8,7 +8,7 @@ const UsuarioInativo = () => {
   } = useAuth();
   return <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <div className="max-w-md w-full text-center space-y-6">
-        <img src={logoVV} alt="VV Benefícios" className="h-12 mx-auto mb-4" />
+        <img alt="VV Benefícios" className="h-12 mx-auto mb-4" src="/lovable-uploads/c01a11b4-e16a-45c4-82da-04320cc458c5.png" />
         
         <div className="bg-card border border-border rounded-xl p-8 shadow-lg space-y-5">
           <div className="flex justify-center">
