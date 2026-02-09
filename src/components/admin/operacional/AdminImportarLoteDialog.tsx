@@ -447,13 +447,13 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
     const empresaCNPJ = currentEmpresa?.cnpj ? currentEmpresa.cnpj.replace(/\D/g, "") : "00000000000000";
 
     const dataToExport = validos.map((c) => ({
-      "NOME COMPLETO": c.nome,
+      "NOME": c.nome,
       SEXO: c.sexo,
       CPF: c.cpf,
       "DATA NASCIMENTO": c.data_nascimento.split("-").reverse().join("/"),
       SALARIO: c.salario.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
       "CLASSIFICACAO SALARIAL": c.classificacao_salario,
-      "CNPJ DA EMPRESA": formatCNPJ(empresaCNPJ),
+      "CNPJ": formatCNPJ(empresaCNPJ),
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -462,7 +462,7 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
     worksheet["!cols"] = [{ wch }, { wch }, { wch }, { wch }, { wch }, { wch }, { wch }];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Lista Seguradora");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Relação de Vidas");
 
     const empresaNomeLimpo = currentEmpresa?.nome.replace(/[^a-zA-Z0-9]/g, "") || "Lote";
     const fileName = `LOTE_SEGURADORA_${empresaNomeLimpo}_${competencia.replace("/", "-")}.xlsx`;
@@ -851,7 +851,7 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
                   onClick={() => {
                     const templateData = [
                       {
-                        "NOME COMPLETO": "EXEMPLO SILVA",
+                        "NOME": "EXEMPLO SILVA",
                         SEXO: "Masculino",
                         CPF: "12345678901",
                         "DATA NASCIMENTO": "01/01/1990",
@@ -967,7 +967,7 @@ export function AdminImportarLoteDialog({ open, onOpenChange }: { open: boolean;
                     disabled={loading || totalValidos === 0}
                     className="gap-2"
                   >
-                    <FileSpreadsheet className="h-4 w-4" /> Baixar Lista Seguradora
+                    <FileSpreadsheet className="h-4 w-4" /> Baixar Relação de Vidas
                   </Button>
 
                   <Button
