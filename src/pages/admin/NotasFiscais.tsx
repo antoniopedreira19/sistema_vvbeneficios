@@ -200,7 +200,6 @@ const NotasFiscais = () => {
                 <TableRow>
                   <TableHead>Mês</TableHead>
                   <TableHead>Empresa</TableHead>
-                  <TableHead>Obra</TableHead>
                   <TableHead>Vidas</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>NF Emitida</TableHead>
@@ -216,8 +215,14 @@ const NotasFiscais = () => {
               const isUploadingBoleto = uploadingId === nf.id && uploadingField === "boleto_url";
               return <TableRow key={nf.id}>
                       <TableCell>{nf.competencia}</TableCell>
-                      <TableCell>{nf.empresas?.nome || "Empresa não encontrada"}</TableCell>
-                      <TableCell>{nf.obras?.nome || "-"}</TableCell>
+                      <TableCell>
+                        <div>
+                          <span>{nf.empresas?.nome || "Empresa não encontrada"}</span>
+                          {nf.obras?.nome && (
+                            <span className="block text-xs text-muted-foreground">({nf.obras.nome})</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{nf.numero_vidas}</TableCell>
                       <TableCell>
                         {valorTotal.toLocaleString('pt-BR', {
