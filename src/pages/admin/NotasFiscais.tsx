@@ -34,6 +34,8 @@ const NotasFiscais = () => {
   const [loading, setLoading] = useState(true);
   const [mesFilter, setMesFilter] = useState<string>("todos");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [nfFilter, setNfFilter] = useState<string>("todos");
+  const [boletoFilter, setBoletoFilter] = useState<string>("todos");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const fetchNotasFiscais = async () => {
@@ -141,18 +143,24 @@ const NotasFiscais = () => {
   const filteredNotasFiscais = useMemo(() => {
     let filtered = notasFiscais;
 
-    // Filtrar por mês
     if (mesFilter !== "todos") {
       filtered = filtered.filter(nf => nf.competencia === mesFilter);
     }
 
-    // Filtrar por busca (nome da empresa ou obra)
+    if (nfFilter !== "todos") {
+      filtered = filtered.filter(nf => nfFilter === "sim" ? nf.nf_emitida : !nf.nf_emitida);
+    }
+
+    if (boletoFilter !== "todos") {
+      filtered = filtered.filter(nf => boletoFilter === "sim" ? nf.boleto_gerado : !nf.boleto_gerado);
+    }
+
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
       filtered = filtered.filter(nf => nf.empresas?.nome?.toLowerCase().includes(term) || nf.obras?.nome?.toLowerCase().includes(term));
     }
     return filtered;
-  }, [notasFiscais, mesFilter, searchTerm]);
+  }, [notasFiscais, mesFilter, searchTerm, nfFilter, boletoFilter]);
   if (loading) {
     return <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -186,6 +194,32 @@ const NotasFiscais = () => {
                     {competenciasList.map(comp => <SelectItem key={comp} value={comp}>
                         {comp}
                       </SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">NF:</span>
+                <Select value={nfFilter} onValueChange={setNfFilter}>
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas</SelectItem>
+                    <SelectItem value="sim">Emitida</SelectItem>
+                    <SelectItem value="nao">Não emitida</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Boleto:</span>
+                <Select value={boletoFilter} onValueChange={setBoletoFilter}>
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="sim">Gerado</SelectItem>
+                    <SelectItem value="nao">Não gerado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
