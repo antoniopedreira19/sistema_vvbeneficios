@@ -2,12 +2,11 @@ import { ShieldX, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import logoVV from "@/assets/logo-vv-beneficios-transparente.png";
-
 const UsuarioInativo = () => {
-  const { signOut } = useAuth();
-
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-background p-4">
+  const {
+    signOut
+  } = useAuth();
+  return <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <div className="max-w-md w-full text-center space-y-6">
         <img src={logoVV} alt="VV Benefícios" className="h-12 mx-auto mb-4" />
         
@@ -35,7 +34,7 @@ const UsuarioInativo = () => {
             </div>
             <div className="flex items-center justify-center gap-2">
               <Phone className="h-4 w-4" />
-              <span>(11) 99999-9999</span>
+              <span>(71) 99654-5751</span>
             </div>
           </div>
 
@@ -44,8 +43,6 @@ const UsuarioInativo = () => {
           </Button>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default UsuarioInativo;
