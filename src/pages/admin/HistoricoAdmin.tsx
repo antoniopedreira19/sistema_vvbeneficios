@@ -96,14 +96,14 @@ export default function HistoricoAdmin() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notas_fiscais")
-        .select("lote_id, nf_emitida");
+        .select("lote_id, nf_emitida, boleto_gerado, pago");
 
       if (error) throw error;
       return data;
     },
   });
 
-  const notasMap = new Map(notasFiscais.map((nf) => [nf.lote_id, nf.nf_emitida]));
+  const notasMap = new Map(notasFiscais.map((nf) => [nf.lote_id, nf]));
 
   // Filtrar e ordenar
   const filteredLotes = lotes
@@ -309,14 +309,19 @@ export default function HistoricoAdmin() {
                     <TableHead>Competência</TableHead>
                     <TableHead className="text-center">Vidas</TableHead>
                     <TableHead className="text-center">Valor</TableHead>
-                    <TableHead className="text-center">NF Emitida</TableHead>
-                    <TableHead className="text-center">Ações</TableHead>
+                     <TableHead className="text-center">NF Emitida</TableHead>
+                     <TableHead className="text-center">Boleto Gerado</TableHead>
+                     <TableHead className="text-center">Pago</TableHead>
+                     <TableHead className="text-center">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedLotes.map((lote) => {
                     const vidas = (lote.total_colaboradores || 0) - (lote.total_reprovados || 0);
-                    const nfEmitida = notasMap.get(lote.id) || false;
+                    const nota = notasMap.get(lote.id);
+                    const nfEmitida = nota?.nf_emitida || false;
+                    const boletoGerado = nota?.boleto_gerado || false;
+                    const pago = nota?.pago || false;
 
                     return (
                       <TableRow key={lote.id}>
@@ -335,8 +340,22 @@ export default function HistoricoAdmin() {
                           ) : (
                             <XCircle className="h-5 w-5 text-muted-foreground mx-auto" />
                           )}
-                        </TableCell>
-                        <TableCell className="text-center">
+                         </TableCell>
+                         <TableCell className="text-center">
+                           {boletoGerado ? (
+                             <CheckCircle2 className="h-5 w-5 text-green-500 mx-auto" />
+                           ) : (
+                             <XCircle className="h-5 w-5 text-muted-foreground mx-auto" />
+                           )}
+                         </TableCell>
+                         <TableCell className="text-center">
+                           {pago ? (
+                             <CheckCircle2 className="h-5 w-5 text-green-500 mx-auto" />
+                           ) : (
+                             <XCircle className="h-5 w-5 text-muted-foreground mx-auto" />
+                           )}
+                         </TableCell>
+                         <TableCell className="text-center">
                           <Button
                             variant="ghost"
                             size="icon"
