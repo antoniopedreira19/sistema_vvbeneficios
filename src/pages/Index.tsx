@@ -39,7 +39,7 @@ const Index = () => {
         return;
       }
 
-      if (isAdminOrOperacional) {
+      if (isAdminOrOperacional || role === "master_admin") {
         navigate("/admin/dashboard");
       } else if (isFinanceiro) {
         navigate("/admin/financeiro");

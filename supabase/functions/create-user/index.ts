@@ -39,7 +39,7 @@ serve(async (req) => {
       )
     }
 
-    if (!['admin', 'cliente', 'operacional', 'financeiro', 'inativo'].includes(role)) {
+    if (!['master_admin', 'admin', 'cliente', 'operacional', 'financeiro', 'inativo'].includes(role)) {
       console.error('Invalid role:', role)
       return new Response(
         JSON.stringify({ error: 'Role inválida' }),
@@ -99,8 +99,17 @@ serve(async (req) => {
       }
     }
 
+    // Validate: only master_admin can create master_admin users
+    if (role === 'master_admin' && callerRole !== 'master_admin') {
+      console.error('Non-master_admin tried to create master_admin user')
+      return new Response(
+        JSON.stringify({ error: 'Apenas Master Admin pode criar outros Master Admin' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      )
+    }
+
     // Validate: operacional users cannot create admin users
-    if (callerRole === 'operacional' && role === 'admin') {
+    if (callerRole === 'operacional' && (role === 'admin' || role === 'master_admin')) {
       console.error('Operacional user tried to create admin user')
       return new Response(
         JSON.stringify({ error: 'Usuários operacionais não podem criar administradores' }),

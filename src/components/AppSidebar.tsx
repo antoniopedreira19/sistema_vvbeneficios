@@ -36,7 +36,7 @@ const adminItems = [
   { title: "Financeiro", url: "/admin/financeiro", icon: Receipt, adminOrFinanceiro: true },
   { title: "Histórico", url: "/admin/historico", icon: History },
   { title: "Empresas", url: "/admin/empresas", icon: Building2 },
-  { title: "Configurações", url: "/admin/configuracoes", icon: Settings, adminOnly: true },
+  { title: "Configurações", url: "/admin/configuracoes", icon: Settings, masterAdminOnly: true },
 ];
 
 const financeiroItems = [
@@ -53,7 +53,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAdmin, isOperacional, isCliente, isFinanceiro, isAdminOrOperacional, empresaAtiva, hasMultipleEmpresas } = useUserRole();
+  const { isMasterAdmin, isAdmin, isOperacional, isCliente, isFinanceiro, isAdminOrOperacional, empresaAtiva, hasMultipleEmpresas } = useUserRole();
   const { signOut } = useAuth();
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
@@ -63,8 +63,8 @@ export function AppSidebar() {
     ? financeiroItems
     : isAdminOrOperacional 
     ? adminItems.filter(item => {
-        if (item.adminOnly) {
-          return isAdmin;
+        if ((item as any).masterAdminOnly) {
+          return isMasterAdmin;
         }
         if (item.adminOrFinanceiro) {
           return isAdmin || isFinanceiro;
@@ -102,7 +102,7 @@ export function AppSidebar() {
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-sidebar-primary font-medium tracking-wide">
-                  {isAdmin ? "Administrador" : isOperacional ? "Operacional" : isFinanceiro ? "Financeiro" : "Cliente"}
+                  {isMasterAdmin ? "Master Admin" : isAdmin ? "Administrador" : isOperacional ? "Operacional" : isFinanceiro ? "Financeiro" : "Cliente"}
                 </p>
                 {isCliente && empresaAtiva && (
                   <p className="text-[10px] text-sidebar-foreground/60 truncate max-w-[140px]" title={empresaAtiva.nome}>

@@ -7,10 +7,11 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
   requireAdminOnly?: boolean;
+  requireMasterAdminOnly?: boolean;
   requireAdminOrFinanceiro?: boolean;
 }
 
-const ProtectedRoute = ({ children, requireAdmin = false, requireAdminOnly = false, requireAdminOrFinanceiro = false }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, requireAdmin = false, requireAdminOnly = false, requireMasterAdminOnly = false, requireAdminOrFinanceiro = false }: ProtectedRouteProps) => {
   const { user, loading: authLoading } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
@@ -29,15 +30,17 @@ const ProtectedRoute = ({ children, requireAdmin = false, requireAdminOnly = fal
         return;
       }
 
-      if (requireAdminOnly && role !== "admin") {
+      if (requireMasterAdminOnly && role !== "master_admin") {
         navigate("/");
-      } else if (requireAdmin && role !== "admin" && role !== "operacional") {
+      } else if (requireAdminOnly && role !== "admin" && role !== "master_admin") {
         navigate("/");
-      } else if (requireAdminOrFinanceiro && role !== "admin" && role !== "financeiro") {
+      } else if (requireAdmin && role !== "admin" && role !== "master_admin" && role !== "operacional") {
+        navigate("/");
+      } else if (requireAdminOrFinanceiro && role !== "admin" && role !== "master_admin" && role !== "financeiro") {
         navigate("/");
       }
     }
-  }, [role, roleLoading, requireAdmin, requireAdminOnly, requireAdminOrFinanceiro, navigate]);
+  }, [role, roleLoading, requireAdmin, requireAdminOnly, requireMasterAdminOnly, requireAdminOrFinanceiro, navigate]);
 
   if (authLoading || roleLoading) {
     return (
@@ -51,15 +54,19 @@ const ProtectedRoute = ({ children, requireAdmin = false, requireAdminOnly = fal
     return null;
   }
 
-  if (requireAdminOnly && role !== "admin") {
+  if (requireMasterAdminOnly && role !== "master_admin") {
     return null;
   }
 
-  if (requireAdmin && role !== "admin" && role !== "operacional") {
+  if (requireAdminOnly && role !== "admin" && role !== "master_admin") {
     return null;
   }
 
-  if (requireAdminOrFinanceiro && role !== "admin" && role !== "financeiro") {
+  if (requireAdmin && role !== "admin" && role !== "master_admin" && role !== "operacional") {
+    return null;
+  }
+
+  if (requireAdminOrFinanceiro && role !== "admin" && role !== "master_admin" && role !== "financeiro") {
     return null;
   }
 

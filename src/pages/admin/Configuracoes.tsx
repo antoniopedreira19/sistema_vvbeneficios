@@ -53,6 +53,7 @@ interface Usuario {
 }
 
 const ROLE_CONFIG: Record<string, { label: string; className: string }> = {
+  master_admin: { label: "Master Admin", className: "bg-yellow-100 text-yellow-800 border-yellow-300" },
   admin: { label: "Admin", className: "bg-red-100 text-red-700 border-red-200" },
   operacional: { label: "Operacional", className: "bg-blue-100 text-blue-700 border-blue-200" },
   financeiro: { label: "Financeiro", className: "bg-purple-100 text-purple-700 border-purple-200" },
@@ -222,6 +223,7 @@ const Configuracoes = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os perfis</SelectItem>
+                    <SelectItem value="master_admin">Master Admin</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="operacional">Operacional</SelectItem>
                     <SelectItem value="financeiro">Financeiro</SelectItem>
