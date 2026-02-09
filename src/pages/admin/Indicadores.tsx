@@ -5,7 +5,7 @@ import { TrendingUp, Clock, CheckCircle, AlertCircle, Users, DollarSign } from "
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { Loader2 } from "lucide-react";
 
-// Mapeamento para converter nome do mês em número para ordenação
+// Mapeamento para ordenação (Mês -> Índice)
 const mesesMap: Record<string, number> = {
   Janeiro: 0,
   Fevereiro: 1,
@@ -21,7 +21,23 @@ const mesesMap: Record<string, number> = {
   Dezembro: 11,
 };
 
-// Função para transformar "Janeiro/2026" em um objeto Date ordenável
+// Mapeamento para exibição no gráfico (Mês -> Abreviação)
+const mesesAbrev: Record<string, string> = {
+  Janeiro: "Jan",
+  Fevereiro: "Fev",
+  Março: "Mar",
+  Abril: "Abr",
+  Maio: "Mai",
+  Junho: "Jun",
+  Julho: "Jul",
+  Agosto: "Ago",
+  Setembro: "Set",
+  Outubro: "Out",
+  Novembro: "Nov",
+  Dezembro: "Dez",
+};
+
+// Função para transformar "Janeiro/2026" em Data (para ordenação)
 const parseCompetencia = (comp: string) => {
   if (!comp) return new Date(0);
   const parts = comp.split("/");
@@ -36,15 +52,24 @@ const parseCompetencia = (comp: string) => {
   return new Date(ano, mesIndex, 1);
 };
 
+// Função para formatar "Janeiro/2026" -> "Jan/26"
+const formatCompetenciaShort = (comp: string) => {
+  const parts = comp.split("/");
+  if (parts.length !== 2) return comp;
+  const [mes, ano] = parts;
+  const mesCurto = mesesAbrev[mes] || mes.substring(0, 3);
+  const anoCurto = ano.substring(2, 4); // Pega os últimos 2 dígitos
+  return `${mesCurto}/${anoCurto}`;
+};
+
 const Indicadores = () => {
-  // Busca e processa os dados
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["admin-indicadores"],
     queryFn: async () => {
       // 1. Buscar lotes processados
       const { data: lotes, error } = await supabase
         .from("lotes_mensais")
-        .select("id, competencia, total_colaboradores, valor_total, status, created_at")
+        .select("id, competencia, total_colaboradores, valor_total, status")
         .in("status", ["concluido", "faturado"]);
 
       if (error) throw error;
@@ -64,18 +89,24 @@ const Indicadores = () => {
         agrupadoPorCompetencia[lote.competencia].valor += lote.valor_total || 0;
       });
 
-      // 3. Converter objeto em array
-      const chartData = Object.values(agrupadoPorCompetencia);
+      // 3. Converter para array e FILTRAR ZERADOS
+      // Só mantém se tiver vidas > 0 ou valor > 0
+      let chartData = Object.values(agrupadoPorCompetencia).filter((item) => item.vidas > 0 || item.valor > 0);
 
-      // 4. ORDENAÇÃO CRONOLÓGICA (O Pulo do Gato)
-      // Ordena do mais antigo para o mais recente baseando-se na data real
+      // 4. Ordenar Cronologicamente
       chartData.sort((a, b) => {
         const dateA = parseCompetencia(a.name);
         const dateB = parseCompetencia(b.name);
         return dateA.getTime() - dateB.getTime();
       });
 
-      // Calcular KPIs simples (exemplo baseados nos dados retornados)
+      // 5. Adicionar campo formatado para o Eixo X
+      chartData = chartData.map((item) => ({
+        ...item,
+        shortName: formatCompetenciaShort(item.name),
+      }));
+
+      // KPI simples
       const totalVidas = chartData.reduce((acc, curr) => acc + curr.vidas, 0);
       const mediaVidas = chartData.length > 0 ? Math.round(totalVidas / chartData.length) : 0;
 
@@ -168,11 +199,18 @@ const Indicadores = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="shortName" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
                   <Tooltip
                     cursor={{ fill: "transparent" }}
                     contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                    labelFormatter={(label, payload) => {
+                      // Mostra o nome completo no tooltip se disponível, ou o curto
+                      if (payload && payload.length > 0) {
+                        return payload[0].payload.name;
+                      }
+                      return label;
+                    }}
                   />
                   <Bar dataKey="vidas" fill="#203455" radius={[4, 4, 0, 0]} name="Vidas" />
                 </BarChart>
@@ -196,7 +234,7 @@ const Indicadores = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="shortName" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis
                     fontSize={12}
                     tickLine={false}
@@ -206,6 +244,12 @@ const Indicadores = () => {
                   <Tooltip
                     formatter={(value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                    labelFormatter={(label, payload) => {
+                      if (payload && payload.length > 0) {
+                        return payload[0].payload.name;
+                      }
+                      return label;
+                    }}
                   />
                   <Line
                     type="monotone"
