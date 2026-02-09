@@ -114,7 +114,7 @@ const App = () => (
         <Route
           path="/admin/configuracoes"
           element={
-            <ProtectedRoute requireAdminOnly>
+            <ProtectedRoute requireMasterAdminOnly>
               <DashboardLayout>
                 <Configuracoes />
               </DashboardLayout>
