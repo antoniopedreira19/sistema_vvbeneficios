@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { formatCNPJ, formatCPF } from "@/lib/validators"; // Certifique-se que formatCPF existe aqui ou em utils
+import { formatCNPJ, formatCPF } from "@/lib/validators";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CRM_STATUS_LABELS, EmpresaStatus } from "@/types/crm";
 
 interface NovaEmpresaDialogProps {
   open: boolean;
@@ -30,6 +32,7 @@ export function NovaEmpresaDialog({ open, onOpenChange }: NovaEmpresaDialogProps
   const [endereco, setEndereco] = useState("");
   const [responsavelNome, setResponsavelNome] = useState("");
   const [responsavelCpf, setResponsavelCpf] = useState("");
+  const [status, setStatus] = useState<EmpresaStatus>("sem_retorno");
 
   const criarEmpresaMutation = useMutation({
     mutationFn: async () => {
@@ -46,6 +49,7 @@ export function NovaEmpresaDialog({ open, onOpenChange }: NovaEmpresaDialogProps
         endereco: endereco || null,
         responsavel_nome: responsavelNome || null,
         responsavel_cpf: cpfLimpo || null,
+        status,
       });
 
       if (error) throw error;
@@ -60,6 +64,7 @@ export function NovaEmpresaDialog({ open, onOpenChange }: NovaEmpresaDialogProps
       setEndereco("");
       setResponsavelNome("");
       setResponsavelCpf("");
+      setStatus("sem_retorno");
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao criar empresa");
@@ -126,6 +131,20 @@ export function NovaEmpresaDialog({ open, onOpenChange }: NovaEmpresaDialogProps
                 className="col-span-3"
                 placeholder="Rua, Número, Bairro, Cidade - UF"
               />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Status</Label>
+              <Select value={status} onValueChange={(val) => setStatus(val as EmpresaStatus)}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CRM_STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="border-t my-2"></div>
