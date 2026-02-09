@@ -37,10 +37,11 @@ interface NotaFiscal {
 }
 const getCompetenciaAtual = () => {
   const now = new Date();
-  const mes = now.toLocaleString("pt-BR", { month: "long" });
+  const mes = now.toLocaleString("pt-BR", {
+    month: "long"
+  });
   return `${mes.charAt(0).toUpperCase() + mes.slice(1)}/${now.getFullYear()}`;
 };
-
 const NotasFiscais = () => {
   const [notasFiscais, setNotasFiscais] = useState<NotaFiscal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,19 +80,25 @@ const NotasFiscais = () => {
   const dateFieldMap: Record<string, string> = {
     nf_emitida: "nf_emitida_em",
     boleto_gerado: "boleto_gerado_em",
-    pago: "pago_em",
+    pago: "pago_em"
   };
-
   const updateField = async (id: string, field: string, value: any) => {
     try {
-      const updateData: Record<string, any> = { [field]: value };
+      const updateData: Record<string, any> = {
+        [field]: value
+      };
       const dateField = dateFieldMap[field];
       if (dateField) {
         updateData[dateField] = value ? new Date().toISOString() : null;
       }
-      const { error } = await supabase.from("notas_fiscais").update(updateData).eq("id", id);
+      const {
+        error
+      } = await supabase.from("notas_fiscais").update(updateData).eq("id", id);
       if (error) throw error;
-      setNotasFiscais(prev => prev.map(nf => nf.id === id ? { ...nf, ...updateData } : nf));
+      setNotasFiscais(prev => prev.map(nf => nf.id === id ? {
+        ...nf,
+        ...updateData
+      } : nf));
       toast.success("Campo atualizado com sucesso");
     } catch (error: any) {
       console.error("Erro ao atualizar campo:", error);
@@ -158,40 +165,43 @@ const NotasFiscais = () => {
   }, [notasFiscais]);
   const filteredNotasFiscais = useMemo(() => {
     let filtered = notasFiscais;
-
     if (mesFilter !== "todos") {
       filtered = filtered.filter(nf => nf.competencia === mesFilter);
     }
-
     if (nfFilter !== "todos") {
       filtered = filtered.filter(nf => nfFilter === "sim" ? nf.nf_emitida : !nf.nf_emitida);
     }
-
     if (boletoFilter !== "todos") {
       filtered = filtered.filter(nf => boletoFilter === "sim" ? nf.boleto_gerado : !nf.boleto_gerado);
     }
-
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
       filtered = filtered.filter(nf => nf.empresas?.nome?.toLowerCase().includes(term) || nf.obras?.nome?.toLowerCase().includes(term));
     }
     return filtered;
   }, [notasFiscais, mesFilter, searchTerm, nfFilter, boletoFilter]);
-
   const kpis = useMemo(() => {
-    const mesFiltrado = mesFilter !== "todos"
-      ? notasFiscais.filter(nf => nf.competencia === mesFilter)
-      : notasFiscais;
+    const mesFiltrado = mesFilter !== "todos" ? notasFiscais.filter(nf => nf.competencia === mesFilter) : notasFiscais;
     const total = mesFiltrado.length;
     const nfEmitidas = mesFiltrado.filter(nf => nf.nf_emitida).length;
     const boletosGerados = mesFiltrado.filter(nf => nf.boleto_gerado).length;
     const pagos = mesFiltrado.filter(nf => nf.pago).length;
     const boletosNaoPagos = boletosGerados - pagos;
-    const pctNf = total > 0 ? Math.round((nfEmitidas / total) * 100) : 0;
-    const pctBoleto = total > 0 ? Math.round((boletosGerados / total) * 100) : 0;
-    const pctPagoTotal = total > 0 ? Math.round((pagos / total) * 100) : 0;
-    const pctPagoBoleto = boletosGerados > 0 ? Math.round((pagos / boletosGerados) * 100) : 0;
-    return { total, nfEmitidas, boletosGerados, pagos, boletosNaoPagos, pctNf, pctBoleto, pctPagoTotal, pctPagoBoleto };
+    const pctNf = total > 0 ? Math.round(nfEmitidas / total * 100) : 0;
+    const pctBoleto = total > 0 ? Math.round(boletosGerados / total * 100) : 0;
+    const pctPagoTotal = total > 0 ? Math.round(pagos / total * 100) : 0;
+    const pctPagoBoleto = boletosGerados > 0 ? Math.round(pagos / boletosGerados * 100) : 0;
+    return {
+      total,
+      nfEmitidas,
+      boletosGerados,
+      pagos,
+      boletosNaoPagos,
+      pctNf,
+      pctBoleto,
+      pctPagoTotal,
+      pctPagoBoleto
+    };
   }, [notasFiscais, mesFilter]);
   if (loading) {
     return <div className="flex items-center justify-center min-h-[400px]">
@@ -200,10 +210,8 @@ const NotasFiscais = () => {
   }
   return <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Notas Fiscais</h1>
-        <p className="text-muted-foreground">
-          Gerenciamento de notas fiscais das empresas
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight">Financeiro</h1>
+        <p className="text-muted-foreground">Gerenciamento do fluxo financeiro das empresas</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -272,9 +280,7 @@ const NotasFiscais = () => {
               <Progress value={kpis.pctPagoBoleto} className="h-2" />
               <span className="text-sm font-medium">{kpis.pctPagoBoleto}%</span>
             </div>
-            {kpis.boletosNaoPagos > 0 && (
-              <p className="text-xs text-destructive mt-2">{kpis.boletosNaoPagos} boleto(s) pendente(s)</p>
-            )}
+            {kpis.boletosNaoPagos > 0 && <p className="text-xs text-destructive mt-2">{kpis.boletosNaoPagos} boleto(s) pendente(s)</p>}
           </CardContent>
         </Card>
       </div>
@@ -358,9 +364,7 @@ const NotasFiscais = () => {
                       <TableCell>
                         <div>
                           <span>{nf.empresas?.nome || "Empresa não encontrada"}</span>
-                          {nf.obras?.nome && (
-                            <span className="block text-xs text-muted-foreground">({nf.obras.nome})</span>
-                          )}
+                          {nf.obras?.nome && <span className="block text-xs text-muted-foreground">({nf.obras.nome})</span>}
                         </div>
                       </TableCell>
                       <TableCell>{nf.numero_vidas}</TableCell>
@@ -445,10 +449,7 @@ const NotasFiscais = () => {
                           </div> : <span className="text-xs text-muted-foreground">Marque como gerado</span>}
                       </TableCell>
                       <TableCell>
-                        <Checkbox
-                          checked={(nf as any).pago || false}
-                          onCheckedChange={(checked) => updateField(nf.id, "pago", !!checked)}
-                        />
+                        <Checkbox checked={(nf as any).pago || false} onCheckedChange={checked => updateField(nf.id, "pago", !!checked)} />
                       </TableCell>
                     </TableRow>;
             })}
