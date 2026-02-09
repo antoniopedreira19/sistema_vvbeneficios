@@ -526,6 +526,7 @@ export type Database = {
           nf_url: string | null
           numero_vidas: number
           obra_id: string | null
+          pago: boolean
           updated_at: string
           valor_total: number
         }
@@ -541,6 +542,7 @@ export type Database = {
           nf_url?: string | null
           numero_vidas?: number
           obra_id?: string | null
+          pago?: boolean
           updated_at?: string
           valor_total?: number
         }
@@ -556,6 +558,7 @@ export type Database = {
           nf_url?: string | null
           numero_vidas?: number
           obra_id?: string | null
+          pago?: boolean
           updated_at?: string
           valor_total?: number
         }
