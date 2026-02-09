@@ -56,6 +56,60 @@ const COLORS_SALARY = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#0088fe"];
 const COLORS_TOP5 = ["#22c55e", "#16a34a", "#15803d", "#166534", "#14532d"];
 const COLORS_AGE = ["#06b6d4", "#0891b2", "#0e7490", "#155e75", "#164e63", "#134e4a"];
 
+// --- HELPERS DE DATA E ORDENAÇÃO ---
+const mesesMap: Record<string, number> = {
+  Janeiro: 0,
+  Fevereiro: 1,
+  Março: 2,
+  Abril: 3,
+  Maio: 4,
+  Junho: 5,
+  Julho: 6,
+  Agosto: 7,
+  Setembro: 8,
+  Outubro: 9,
+  Novembro: 10,
+  Dezembro: 11,
+};
+
+const mesesAbrev: Record<string, string> = {
+  Janeiro: "Jan",
+  Fevereiro: "Fev",
+  Março: "Mar",
+  Abril: "Abr",
+  Maio: "Mai",
+  Junho: "Jun",
+  Julho: "Jul",
+  Agosto: "Ago",
+  Setembro: "Set",
+  Outubro: "Out",
+  Novembro: "Nov",
+  Dezembro: "Dez",
+};
+
+const parseCompetencia = (comp: string) => {
+  if (!comp) return new Date(0);
+  const parts = comp.split("/");
+  if (parts.length !== 2) return new Date(0);
+
+  const [mesName, anoStr] = parts;
+  const mesIndex = mesesMap[mesName];
+  const ano = parseInt(anoStr);
+
+  if (mesIndex === undefined || isNaN(ano)) return new Date(0);
+
+  return new Date(ano, mesIndex, 1);
+};
+
+const formatCompetenciaShort = (comp: string) => {
+  const parts = comp.split("/");
+  if (parts.length !== 2) return comp;
+  const [mes, ano] = parts;
+  const mesCurto = mesesAbrev[mes] || mes.substring(0, 3);
+  const anoCurto = ano.substring(2, 4);
+  return `${mesCurto}/${anoCurto}`;
+};
+
 export default function Dashboard() {
   const [selectedCompetencia, setSelectedCompetencia] = useState<string>("");
   const [showCompaniesModal, setShowCompaniesModal] = useState(false);
@@ -130,17 +184,17 @@ export default function Dashboard() {
         const pageSize = 1000;
         let page = 0;
         let hasMore = true;
-        
+
         while (hasMore) {
           const start = page * pageSize;
           const end = start + pageSize - 1;
-          
+
           const { data } = await supabase
             .from("colaboradores_lote")
             .select("sexo, salario, data_nascimento")
             .in("lote_id", lotesIds)
             .range(start, end);
-          
+
           if (data && data.length > 0) {
             colaboradoresDetalhados = [...colaboradoresDetalhados, ...data];
             hasMore = data.length === pageSize;
@@ -162,6 +216,7 @@ export default function Dashboard() {
       const { data: historicoLotes } = await supabase
         .from("lotes_mensais")
         .select("competencia, total_colaboradores, valor_total, created_at")
+        // Removemos a ordenação aqui pois faremos manualmente abaixo
         .order("created_at", { ascending: true });
 
       // G. TODAS AS EMPRESAS ATIVAS (Para calcular pendentes)
@@ -187,10 +242,11 @@ export default function Dashboard() {
 
   // KPIs
   const totalEmpresasNoMes = new Set(dashboardData?.lotesMes.map((l) => l.empresa_id)).size || 0;
-  const vidasFaturadas = dashboardData?.lotesFaturados?.reduce((acc, lote) => acc + (lote.total_colaboradores || 0), 0) || 0;
+  const vidasFaturadas =
+    dashboardData?.lotesFaturados?.reduce((acc, lote) => acc + (lote.total_colaboradores || 0), 0) || 0;
   const faturamentoRealizado = vidasFaturadas * 50;
   const totalVidasMes = dashboardData?.lotesMes.reduce((acc, l) => acc + (l.total_colaboradores || 0), 0) || 0;
-  
+
   // Faturamento esperado = apenas vidas que ENVIARAM no mês * R$50
   const faturamentoEsperado = totalVidasMes * 50;
 
@@ -273,7 +329,7 @@ export default function Dashboard() {
     pct: totalComIdade > 0 ? ((r.count / totalComIdade) * 100).toFixed(1) + "%" : "0%",
   }));
 
-  // Gráfico Evolução
+  // --- CORREÇÃO NO GRÁFICO DE EVOLUÇÃO ---
   const evolutionMap = dashboardData?.historicoLotes?.reduce((acc: any, curr) => {
     if (!acc[curr.competencia]) {
       acc[curr.competencia] = { name: curr.competencia, vidas: 0, faturamento: 0 };
@@ -284,7 +340,25 @@ export default function Dashboard() {
     return acc;
   }, {});
 
-  const evolutionChartData = Object.values(evolutionMap || {}).slice(-6) as any[];
+  let evolutionChartData = Object.values(evolutionMap || {}) as any[];
+
+  // 1. Filtrar Zerados (opcional, se quiser mostrar meses sem nada, remova o filter)
+  evolutionChartData = evolutionChartData.filter((item) => item.vidas > 0 || item.faturamento > 0);
+
+  // 2. Ordenar Cronologicamente (O Mais Antigo -> O Mais Recente)
+  evolutionChartData.sort((a, b) => {
+    const dateA = parseCompetencia(a.name);
+    const dateB = parseCompetencia(b.name);
+    return dateA.getTime() - dateB.getTime();
+  });
+
+  // 3. Adicionar nome curto (Jan/26) e pegar os últimos 6 meses
+  evolutionChartData = evolutionChartData
+    .map((item) => ({
+      ...item,
+      shortName: formatCompetenciaShort(item.name),
+    }))
+    .slice(-6);
 
   // Top 5 Faturamento
   const revenueByCompany: Record<string, number> = {};
@@ -416,7 +490,8 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={evolutionChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+                  {/* EIXO X ALTERADO PARA shortName */}
+                  <XAxis dataKey="shortName" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis
                     yAxisId="left"
                     fontSize={12}
@@ -431,6 +506,13 @@ export default function Dashboard() {
                       if (name === "Faturamento")
                         return [value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), name];
                       return [value, name];
+                    }}
+                    // Mostra o nome completo no tooltip
+                    labelFormatter={(label, payload) => {
+                      if (payload && payload.length > 0) {
+                        return payload[0].payload.name;
+                      }
+                      return label;
                     }}
                   />
                   <Legend />
@@ -588,11 +670,7 @@ export default function Dashboard() {
             <div className="h-[300px] w-full">
               {totalComIdade > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={ageChartData}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-                  >
+                  <BarChart data={ageChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                     <XAxis type="number" hide />
                     <YAxis dataKey="name" type="category" width={50} fontSize={12} tickLine={false} axisLine={false} />
