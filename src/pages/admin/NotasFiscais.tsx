@@ -18,6 +18,8 @@ interface NotaFiscal {
   valor_total: number;
   nf_emitida: boolean;
   nf_url: string | null;
+  boleto_gerado: boolean;
+  boleto_url: string | null;
   empresas: {
     nome: string;
   } | null;
@@ -35,6 +37,7 @@ const NotasFiscais = () => {
   const [mesFilter, setMesFilter] = useState<string>("todos");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
 
   const fetchNotasFiscais = async () => {
     try {
@@ -85,16 +88,14 @@ const NotasFiscais = () => {
     }
   };
 
-  const handleFileUpload = async (notaFiscal: NotaFiscal, file: File) => {
+  const handleFileUpload = async (notaFiscal: NotaFiscal, file: File, field: "nf_url" | "boleto_url") => {
     if (!file) return;
 
-    // Validar tamanho (máximo 15MB)
     if (file.size > 15 * 1024 * 1024) {
       toast.error("Arquivo muito grande. Limite de 15MB.");
       return;
     }
 
-    // Validar tipo
     const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
       toast.error("Tipo de arquivo não permitido. Use PDF, PNG ou JPG.");
@@ -102,52 +103,46 @@ const NotasFiscais = () => {
     }
 
     setUploadingId(notaFiscal.id);
+    setUploadingField(field);
 
     try {
       const fileExt = file.name.split('.').pop();
       const empresaNome = notaFiscal.empresas?.nome?.replace(/[^a-zA-Z0-9]/g, '_') || 'empresa';
-      const fileName = `NF_${empresaNome}_${notaFiscal.competencia}_${Date.now()}.${fileExt}`;
+      const prefix = field === "nf_url" ? "NF" : "BOL";
+      const fileName = `${prefix}_${empresaNome}_${notaFiscal.competencia}_${Date.now()}.${fileExt}`;
 
-      // Upload para o bucket
       const { error: uploadError } = await supabase.storage
         .from("notas-fiscais")
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // Pegar URL pública
       const { data: { publicUrl } } = supabase.storage
         .from("notas-fiscais")
         .getPublicUrl(fileName);
 
-      // Atualizar no banco
-      await updateField(notaFiscal.id, "nf_url", publicUrl);
+      await updateField(notaFiscal.id, field, publicUrl);
 
-      toast.success("Nota fiscal anexada com sucesso!");
+      toast.success(field === "nf_url" ? "Nota fiscal anexada!" : "Boleto anexado!");
     } catch (error: any) {
       console.error("Erro ao fazer upload:", error);
-      toast.error(error.message || "Erro ao anexar nota fiscal");
+      toast.error(error.message || "Erro ao anexar arquivo");
     } finally {
       setUploadingId(null);
+      setUploadingField(null);
     }
   };
 
-  const handleRemoveFile = async (notaFiscal: NotaFiscal) => {
+  const handleRemoveFile = async (notaFiscal: NotaFiscal, field: "nf_url" | "boleto_url") => {
     try {
-      // Extrair o nome do arquivo da URL
-      if (notaFiscal.nf_url) {
-        const urlParts = notaFiscal.nf_url.split('/');
+      const url = notaFiscal[field];
+      if (url) {
+        const urlParts = url.split('/');
         const fileName = urlParts[urlParts.length - 1];
-        
-        // Tentar deletar do storage
-        await supabase.storage
-          .from("notas-fiscais")
-          .remove([fileName]);
+        await supabase.storage.from("notas-fiscais").remove([fileName]);
       }
 
-      // Limpar a URL no banco
-      await updateField(notaFiscal.id, "nf_url", null);
-      
+      await updateField(notaFiscal.id, field, null);
       toast.success("Arquivo removido com sucesso");
     } catch (error: any) {
       console.error("Erro ao remover arquivo:", error);
@@ -246,12 +241,15 @@ const NotasFiscais = () => {
                   <TableHead>Valor</TableHead>
                   <TableHead>NF Emitida</TableHead>
                   <TableHead>Anexo NF</TableHead>
+                  <TableHead>Boleto Gerado</TableHead>
+                  <TableHead>Anexo Boleto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredNotasFiscais.map((nf) => {
                   const valorTotal = nf.lotes_mensais?.valor_total || nf.valor_total || 0;
-                  const isUploading = uploadingId === nf.id;
+                  const isUploadingNF = uploadingId === nf.id && uploadingField === "nf_url";
+                  const isUploadingBoleto = uploadingId === nf.id && uploadingField === "boleto_url";
                   
                   return (
                     <TableRow key={nf.id}>
@@ -285,56 +283,76 @@ const NotasFiscais = () => {
                         {nf.nf_emitida ? (
                           <div className="flex items-center gap-2">
                             {nf.nf_url ? (
-                              // Arquivo já anexado - mostrar link e botão de remover
                               <div className="flex items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  asChild
-                                  className="gap-1"
-                                >
+                                <Button variant="outline" size="sm" asChild className="gap-1">
                                   <a href={nf.nf_url} target="_blank" rel="noopener noreferrer">
                                     <FileText className="h-4 w-4" />
                                     Ver NF
                                     <ExternalLink className="h-3 w-3" />
                                   </a>
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleRemoveFile(nf)}
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                >
+                                <Button variant="ghost" size="sm" onClick={() => handleRemoveFile(nf, "nf_url")} className="text-destructive hover:text-destructive hover:bg-destructive/10">
                                   <X className="h-4 w-4" />
                                 </Button>
                               </div>
                             ) : (
-                              // Sem arquivo - mostrar input de upload
                               <div className="flex items-center gap-2">
                                 <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-2 text-xs border rounded-md hover:bg-primary hover:text-primary-foreground">
                                   <Upload className="h-3 w-3" />
                                   Anexar NF
-                                  <Input
-                                    type="file"
-                                    accept=".pdf,.png,.jpg,.jpeg"
-                                    className="hidden"
-                                    disabled={isUploading}
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) handleFileUpload(nf, file);
-                                    }}
-                                  />
+                                  <Input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" disabled={isUploadingNF} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(nf, file, "nf_url"); }} />
                                 </label>
-                                {isUploading && (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                )}
+                                {isUploadingNF && <Loader2 className="h-4 w-4 animate-spin" />}
                               </div>
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Marque como emitida
-                          </span>
+                          <span className="text-xs text-muted-foreground">Marque como emitida</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={nf.boleto_gerado ? "sim" : "nao"}
+                          onValueChange={(value) => updateField(nf.id, "boleto_gerado", value === "sim")}
+                        >
+                          <SelectTrigger className="w-[100px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sim">Sim</SelectItem>
+                            <SelectItem value="nao">Não</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        {nf.boleto_gerado ? (
+                          <div className="flex items-center gap-2">
+                            {nf.boleto_url ? (
+                              <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" asChild className="gap-1">
+                                  <a href={nf.boleto_url} target="_blank" rel="noopener noreferrer">
+                                    <FileText className="h-4 w-4" />
+                                    Ver Boleto
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleRemoveFile(nf, "boleto_url")} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-2 text-xs border rounded-md hover:bg-primary hover:text-primary-foreground">
+                                  <Upload className="h-3 w-3" />
+                                  Anexar Boleto
+                                  <Input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" disabled={isUploadingBoleto} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(nf, file, "boleto_url"); }} />
+                                </label>
+                                {isUploadingBoleto && <Loader2 className="h-4 w-4 animate-spin" />}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Marque como gerado</span>
                         )}
                       </TableCell>
                     </TableRow>
