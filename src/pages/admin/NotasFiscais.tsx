@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Upload, FileText, ExternalLink, X, Search, ReceiptText, FileCheck, CreditCard } from "lucide-react";
+import { Loader2, Upload, FileText, ExternalLink, X, Search, ReceiptText, FileCheck, CreditCard, CircleDollarSign } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 interface NotaFiscal {
   id: string;
   empresa_id: string;
@@ -20,6 +21,7 @@ interface NotaFiscal {
   nf_url: string | null;
   boleto_gerado: boolean;
   boleto_url: string | null;
+  pago: boolean;
   empresas: {
     nome: string;
   } | null;
@@ -170,9 +172,11 @@ const NotasFiscais = () => {
     const total = mesFiltrado.length;
     const nfEmitidas = mesFiltrado.filter(nf => nf.nf_emitida).length;
     const boletosGerados = mesFiltrado.filter(nf => nf.boleto_gerado).length;
+    const pagos = mesFiltrado.filter(nf => nf.pago).length;
     const pctNf = total > 0 ? Math.round((nfEmitidas / total) * 100) : 0;
     const pctBoleto = total > 0 ? Math.round((boletosGerados / total) * 100) : 0;
-    return { total, nfEmitidas, boletosGerados, pctNf, pctBoleto };
+    const pctPago = total > 0 ? Math.round((pagos / total) * 100) : 0;
+    return { total, nfEmitidas, boletosGerados, pagos, pctNf, pctBoleto, pctPago };
   }, [notasFiscais, mesFilter]);
   if (loading) {
     return <div className="flex items-center justify-center min-h-[400px]">
@@ -187,7 +191,7 @@ const NotasFiscais = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total de Lotes</CardTitle>
@@ -223,6 +227,19 @@ const NotasFiscais = () => {
             <div className="flex items-center gap-2 mt-2">
               <Progress value={kpis.pctBoleto} className="h-2" />
               <span className="text-sm font-medium">{kpis.pctBoleto}%</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pagos</CardTitle>
+            <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.pagos} <span className="text-sm font-normal text-muted-foreground">/ {kpis.total}</span></div>
+            <div className="flex items-center gap-2 mt-2">
+              <Progress value={kpis.pctPago} className="h-2" />
+              <span className="text-sm font-medium">{kpis.pctPago}%</span>
             </div>
           </CardContent>
         </Card>
@@ -293,8 +310,9 @@ const NotasFiscais = () => {
                   <TableHead>NF Emitida</TableHead>
                   <TableHead>Anexo NF</TableHead>
                   <TableHead>Boleto Gerado</TableHead>
-                  <TableHead>Anexo Boleto</TableHead>
-                </TableRow>
+                   <TableHead>Anexo Boleto</TableHead>
+                   <TableHead>Pago</TableHead>
+                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredNotasFiscais.map(nf => {
@@ -391,6 +409,12 @@ const NotasFiscais = () => {
                                 {isUploadingBoleto && <Loader2 className="h-4 w-4 animate-spin" />}
                               </div>}
                           </div> : <span className="text-xs text-muted-foreground">Marque como gerado</span>}
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          checked={(nf as any).pago || false}
+                          onCheckedChange={(checked) => updateField(nf.id, "pago", !!checked)}
+                        />
                       </TableCell>
                     </TableRow>;
             })}
