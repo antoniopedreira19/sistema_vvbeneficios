@@ -334,7 +334,7 @@ export default function HistoricoAdmin() {
                           <Badge variant="outline">{lote.competencia}</Badge>
                         </TableCell>
                         <TableCell className="text-center">{vidas}</TableCell>
-                        <TableCell className="text-center">
+                        <TableCell className="text-center whitespace-nowrap">
                           R$ {(lote.valor_total || 0).toLocaleString("pt-BR")}
                         </TableCell>
                         <TableCell className="text-center">
