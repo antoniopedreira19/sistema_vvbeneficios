@@ -100,6 +100,7 @@ export const NovoUsuarioDialog = ({ onSuccess }: NovoUsuarioDialogProps) => {
       });
 
       if (error) throw error;
+      if (result?.error) throw new Error(result.error);
 
       toast({
         title: "Usuário cadastrado!",
