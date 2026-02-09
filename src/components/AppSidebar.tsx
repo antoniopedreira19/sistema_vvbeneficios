@@ -106,7 +106,7 @@ export function AppSidebar() {
               </div>
               <div className="min-w-0">
                 
-                {isCliente && empresaAtiva}
+                {isCliente && empresaAtiva && <span className="text-xs text-sidebar-foreground/70 truncate">{empresaAtiva.nome}</span>}
               </div>
             </div>}
         </div>
