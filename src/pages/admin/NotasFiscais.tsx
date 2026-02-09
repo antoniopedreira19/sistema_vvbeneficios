@@ -206,7 +206,7 @@ const NotasFiscais = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total de Lotes</CardTitle>
@@ -245,28 +245,36 @@ const NotasFiscais = () => {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pagos</CardTitle>
+            <CardTitle className="text-sm font-medium">Pagos (do total)</CardTitle>
             <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{kpis.pagos} <span className="text-sm font-normal text-muted-foreground">/ {kpis.total}</span></div>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-2">
               <Progress value={kpis.pctPagoTotal} className="h-2" />
               <span className="text-sm font-medium">{kpis.pctPagoTotal}%</span>
             </div>
-            <div className="mt-3 pt-3 border-t">
-              <p className="text-xs text-muted-foreground mb-1">Dos boletos gerados</p>
-              <div className="text-lg font-bold">{kpis.pagos} <span className="text-sm font-normal text-muted-foreground">/ {kpis.boletosGerados}</span></div>
-              <div className="flex items-center gap-2 mt-1">
-                <Progress value={kpis.pctPagoBoleto} className="h-2" />
-                <span className="text-sm font-medium">{kpis.pctPagoBoleto}%</span>
-              </div>
-              {kpis.boletosNaoPagos > 0 && (
-                <p className="text-xs text-destructive mt-1">{kpis.boletosNaoPagos} boleto(s) pendente(s)</p>
-              )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pagos (dos boletos gerados)</CardTitle>
+            <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.pagos} <span className="text-sm font-normal text-muted-foreground">/ {kpis.boletosGerados}</span></div>
+            <div className="flex items-center gap-2 mt-2">
+              <Progress value={kpis.pctPagoBoleto} className="h-2" />
+              <span className="text-sm font-medium">{kpis.pctPagoBoleto}%</span>
             </div>
+            {kpis.boletosNaoPagos > 0 && (
+              <p className="text-xs text-destructive mt-2">{kpis.boletosNaoPagos} boleto(s) pendente(s)</p>
+            )}
           </CardContent>
         </Card>
       </div>
