@@ -305,7 +305,6 @@ export default function HistoricoAdmin() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Empresa</TableHead>
-                    <TableHead>Obra</TableHead>
                     <TableHead>Competência</TableHead>
                     <TableHead className="text-center">Vidas</TableHead>
                     <TableHead className="text-center">Valor</TableHead>
@@ -325,8 +324,12 @@ export default function HistoricoAdmin() {
 
                     return (
                       <TableRow key={lote.id}>
-                        <TableCell className="font-medium">{lote.empresa?.nome || "-"}</TableCell>
-                        <TableCell>{lote.obra?.nome || "Sede"}</TableCell>
+                        <TableCell className="font-medium">
+                          <div>{lote.empresa?.nome || "-"}</div>
+                          {lote.obra?.nome && (
+                            <div className="text-xs text-muted-foreground">{lote.obra.nome}</div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline">{lote.competencia}</Badge>
                         </TableCell>
