@@ -19,9 +19,12 @@ interface NotaFiscal {
   valor_total: number;
   nf_emitida: boolean;
   nf_url: string | null;
+  nf_emitida_em: string | null;
   boleto_gerado: boolean;
   boleto_url: string | null;
+  boleto_gerado_em: string | null;
   pago: boolean;
+  pago_em: string | null;
   empresas: {
     nome: string;
   } | null;
@@ -67,18 +70,22 @@ const NotasFiscais = () => {
   useEffect(() => {
     fetchNotasFiscais();
   }, []);
+  const dateFieldMap: Record<string, string> = {
+    nf_emitida: "nf_emitida_em",
+    boleto_gerado: "boleto_gerado_em",
+    pago: "pago_em",
+  };
+
   const updateField = async (id: string, field: string, value: any) => {
     try {
-      const {
-        error
-      } = await supabase.from("notas_fiscais").update({
-        [field]: value
-      }).eq("id", id);
+      const updateData: Record<string, any> = { [field]: value };
+      const dateField = dateFieldMap[field];
+      if (dateField) {
+        updateData[dateField] = value ? new Date().toISOString() : null;
+      }
+      const { error } = await supabase.from("notas_fiscais").update(updateData).eq("id", id);
       if (error) throw error;
-      setNotasFiscais(prev => prev.map(nf => nf.id === id ? {
-        ...nf,
-        [field]: value
-      } : nf));
+      setNotasFiscais(prev => prev.map(nf => nf.id === id ? { ...nf, ...updateData } : nf));
       toast.success("Campo atualizado com sucesso");
     } catch (error: any) {
       console.error("Erro ao atualizar campo:", error);

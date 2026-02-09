@@ -516,6 +516,7 @@ export type Database = {
       notas_fiscais: {
         Row: {
           boleto_gerado: boolean
+          boleto_gerado_em: string | null
           boleto_url: string | null
           competencia: string
           created_at: string
@@ -523,15 +524,18 @@ export type Database = {
           id: string
           lote_id: string
           nf_emitida: boolean
+          nf_emitida_em: string | null
           nf_url: string | null
           numero_vidas: number
           obra_id: string | null
           pago: boolean
+          pago_em: string | null
           updated_at: string
           valor_total: number
         }
         Insert: {
           boleto_gerado?: boolean
+          boleto_gerado_em?: string | null
           boleto_url?: string | null
           competencia: string
           created_at?: string
@@ -539,15 +543,18 @@ export type Database = {
           id?: string
           lote_id: string
           nf_emitida?: boolean
+          nf_emitida_em?: string | null
           nf_url?: string | null
           numero_vidas?: number
           obra_id?: string | null
           pago?: boolean
+          pago_em?: string | null
           updated_at?: string
           valor_total?: number
         }
         Update: {
           boleto_gerado?: boolean
+          boleto_gerado_em?: string | null
           boleto_url?: string | null
           competencia?: string
           created_at?: string
@@ -555,10 +562,12 @@ export type Database = {
           id?: string
           lote_id?: string
           nf_emitida?: boolean
+          nf_emitida_em?: string | null
           nf_url?: string | null
           numero_vidas?: number
           obra_id?: string | null
           pago?: boolean
+          pago_em?: string | null
           updated_at?: string
           valor_total?: number
         }
