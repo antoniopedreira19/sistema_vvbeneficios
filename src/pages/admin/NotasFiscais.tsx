@@ -401,7 +401,7 @@ const NotasFiscais = () => {
                         <div>
                           <span>{nf.empresas?.nome || "Empresa não encontrada"}</span>
                           {nf.obras?.nome && (
-                            <span className="block text-xs text-muted-foreground">({nf.obras.nome})</span>
+                            <span className="block text-xs text-muted-foreground">{nf.obras.nome}</span>
                           )}
                         </div>
                       </TableCell>
