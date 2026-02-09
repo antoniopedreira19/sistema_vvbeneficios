@@ -1,40 +1,32 @@
 
-## Adicionar datas de rastreamento na tabela notas_fiscais
 
-Atualmente, a tabela `notas_fiscais` possui apenas campos booleanos (nf_emitida, boleto_gerado, pago), mas **nao registra quando** cada evento aconteceu. Para viabilizar KPIs de tempo (ex: dias entre emissao da NF e pagamento), precisamos adicionar colunas de data.
+# Corrigir erro de RLS no upload de Notas Fiscais
 
-### O que sera feito
+## Problema Identificado
 
-**1. Migracao no banco de dados**
+O erro **"new row violates row-level security policy"** acontece no **storage** (bucket `notas-fiscais`), e nao na tabela `notas_fiscais`.
 
-Adicionar 3 novas colunas na tabela `notas_fiscais`:
+As politicas de storage do bucket `notas-fiscais` permitem upload apenas para os cargos `admin`, `operacional` e `financeiro` -- mas **nao incluem `master_admin`**. Como o usuario logado (`antoniopvo19@outlook.com.br`) possui o cargo `master_admin`, o upload e bloqueado.
 
-| Coluna | Tipo | Descricao |
-|---|---|---|
-| `nf_emitida_em` | timestamp with time zone | Data em que a NF foi marcada como emitida |
-| `boleto_gerado_em` | timestamp with time zone | Data em que o boleto foi marcado como gerado |
-| `pago_em` | timestamp with time zone | Data em que foi marcado como pago |
+## Solucao
 
-Todas nullable, preenchidas automaticamente quando o usuario altera o campo correspondente.
+Adicionar o cargo `master_admin` em todas as 4 politicas de storage do bucket `notas-fiscais`:
 
-**2. Atualizar o codigo da pagina NotasFiscais.tsx**
+1. **INSERT** (upload) - "Admins e Financeiro podem fazer upload de notas fiscais"
+2. **SELECT** (leitura) - "Admins e Financeiro podem ver notas fiscais storage"
+3. **UPDATE** (atualizacao) - "Admins e Financeiro podem atualizar notas fiscais storage"
+4. **DELETE** (exclusao) - "Admins e Financeiro podem deletar notas fiscais storage"
 
-Modificar a funcao `updateField` para que, ao alterar um campo booleano, tambem salve a data correspondente:
+## Detalhes Tecnicos
 
-- `nf_emitida = true` --> salva `nf_emitida_em = now()`; se `false` --> limpa `nf_emitida_em = null`
-- `boleto_gerado = true` --> salva `boleto_gerado_em = now()`; se `false` --> limpa `boleto_gerado_em = null`
-- `pago = true` --> salva `pago_em = now()`; se `false` --> limpa `pago_em = null`
+Sera executada uma migracao SQL que remove as politicas atuais e as recria incluindo `has_role(auth.uid(), 'master_admin'::app_role)` em cada uma delas. Exemplo da condicao atualizada:
 
-Mesma logica para o upload de arquivos (anexar NF ou boleto).
+```text
+has_role(auth.uid(), 'admin') 
+OR has_role(auth.uid(), 'master_admin')
+OR has_role(auth.uid(), 'operacional') 
+OR has_role(auth.uid(), 'financeiro')
+```
 
-**3. Atualizar tipos TypeScript**
+Nenhuma alteracao de codigo frontend e necessaria.
 
-Adicionar os 3 novos campos na interface `NotaFiscal` e no arquivo de tipos do Supabase.
-
----
-
-### Detalhes tecnicos
-
-- A migracao sera feita via SQL migration no Supabase
-- Nenhuma mudanca visual sera feita agora -- as datas ficam salvas para uso futuro em KPIs
-- Os registros existentes terao essas colunas como `null` (dados historicos nao terao data retroativa)
