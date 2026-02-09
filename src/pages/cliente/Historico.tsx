@@ -125,7 +125,7 @@ const Historico = () => {
       if (loteIds.length === 0) return [];
       const { data, error } = await supabase
         .from("notas_fiscais")
-        .select("lote_id, nf_emitida, nf_url")
+        .select("lote_id, nf_emitida, nf_url, boleto_gerado, boleto_url")
         .in("lote_id", loteIds);
       if (error) throw error;
       return data || [];
@@ -263,8 +263,10 @@ const Historico = () => {
                     <TableHead>Valor Total</TableHead>
                     <TableHead>Enviado em</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>NF Emitida</TableHead>
-                    <TableHead>Anexo NF</TableHead>
+                     <TableHead>NF Emitida</TableHead>
+                     <TableHead>Anexo NF</TableHead>
+                     <TableHead>Boleto Gerado</TableHead>
+                     <TableHead>Anexo Boleto</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -315,12 +317,39 @@ const Historico = () => {
                               <span className="text-muted-foreground text-sm">-</span>
                             )}
                           </TableCell>
+                          <TableCell>
+                            {notaFiscal ? (
+                              notaFiscal.boleto_gerado ? (
+                                <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Sim</Badge>
+                              ) : (
+                                <Badge variant="secondary">Não</Badge>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {notaFiscal?.boleto_url ? (
+                              <a
+                                href={notaFiscal.boleto_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                              >
+                                <FileText className="h-4 w-4" />
+                                Ver Boleto
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
                         </TableRow>
                       );
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                         Nenhuma lista enviada encontrada.
                       </TableCell>
                     </TableRow>
