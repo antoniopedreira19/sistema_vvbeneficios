@@ -135,10 +135,10 @@ export default function AdminEmpresas() {
           {/* 2. INATIVOS */}
           <TabsTrigger
             value="inativos"
-            className="flex items-center gap-2 text-muted-foreground data-[state=active]:text-red-600"
+            className="flex items-center gap-2"
           >
             <ArchiveX className="h-4 w-4" />
-            Inativas
+            Prospecção
           </TabsTrigger>
 
           {/* 3. CRM */}

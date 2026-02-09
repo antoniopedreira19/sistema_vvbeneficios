@@ -169,7 +169,7 @@ export function CRMInactiveList() {
         <CardTitle className="flex justify-between items-center text-foreground">
           <div className="flex items-center gap-2">
             <ArchiveX className="h-5 w-5 text-muted-foreground" />
-            Empresas Inativas ({empresas?.length || 0})
+            Empresas em Prospecção ({empresas?.length || 0})
             <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)} className="ml-2">
               <Upload className="mr-2 h-4 w-4" />
               Importar
