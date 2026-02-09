@@ -29,6 +29,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface EditarLoteDialogProps {
@@ -108,6 +111,11 @@ export function EditarLoteDialog({ lote, open, onOpenChange }: EditarLoteDialogP
   const [isAdding, setIsAdding] = useState(false);
   const [isReplacing, setIsReplacing] = useState(false);
   const [replacingLoading, setReplacingLoading] = useState(false);
+  const [importErrors, setImportErrors] = useState<{ linha: number; campo: string; erro: string }[]>([]);
+  const [importValidCount, setImportValidCount] = useState(0);
+  const [importStep, setImportStep] = useState<"upload" | "review">("upload");
+  const [pendingImportData, setPendingImportData] = useState<any[] | null>(null);
+  const [pendingDesligarIds, setPendingDesligarIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     nome: "",
@@ -158,12 +166,17 @@ export function EditarLoteDialog({ lote, open, onOpenChange }: EditarLoteDialogP
     setIsAdding(true);
   };
 
-  // Processar arquivo para substituir lote
+  // Processar arquivo para substituir lote (fase 1: validação)
   const handleFileReplace = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setReplacingLoading(true);
+    setImportErrors([]);
+    setImportValidCount(0);
+    setPendingImportData(null);
+    setPendingDesligarIds([]);
+
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
@@ -201,40 +214,75 @@ export function EditarLoteDialog({ lote, open, onOpenChange }: EditarLoteDialogP
 
       const novosDados: any[] = [];
       const cpfsVistos = new Set<string>();
+      const errors: { linha: number; campo: string; erro: string }[] = [];
 
       for (let i = 1; i < jsonData.length; i++) {
         const row = jsonData[i];
         if (!row || row.length === 0) continue;
 
+        const linha = i + 1; // linha na planilha (header = 1)
         const nome = row[idxNome] ? String(row[idxNome]).trim().toUpperCase() : "";
         const cpfRaw = row[idxCPF] ? String(row[idxCPF]) : "";
         const cpfLimpo = cpfRaw.replace(/\D/g, "").padStart(11, "0");
         const salario = idxSalario !== -1 ? normalizarSalario(row[idxSalario]) : 0;
+        const dataNascRaw = idxNasc !== -1 ? row[idxNasc] : null;
+        const dataNasc = idxNasc !== -1 ? normalizarData(dataNascRaw) : "2000-01-01";
 
-        if (!nome && cpfLimpo.length === 0) continue;
-        if (cpfLimpo.length !== 11 || !validateCPF(cpfLimpo)) continue;
-        if (cpfsVistos.has(cpfLimpo)) continue;
-        cpfsVistos.add(cpfLimpo);
+        let hasError = false;
 
-        novosDados.push({
-          nome,
-          cpf: cpfLimpo,
-          sexo: idxSexo !== -1 ? normalizarSexo(row[idxSexo]) : "Masculino",
-          data_nascimento: idxNasc !== -1 ? normalizarData(row[idxNasc]) : "2000-01-01",
-          salario,
-          classificacao_salario: calcularClassificacao(salario),
-        });
+        // Validar nome
+        if (!nome) {
+          errors.push({ linha, campo: "Nome", erro: "Nome está vazio" });
+          hasError = true;
+        }
+
+        // Validar CPF
+        if (!cpfRaw || cpfLimpo.replace(/0/g, "").length === 0) {
+          errors.push({ linha, campo: "CPF", erro: "CPF está vazio" });
+          hasError = true;
+        } else if (cpfLimpo.length !== 11) {
+          errors.push({ linha, campo: "CPF", erro: `CPF inválido: "${cpfRaw}" (deve ter 11 dígitos)` });
+          hasError = true;
+        } else if (!validateCPF(cpfLimpo)) {
+          errors.push({ linha, campo: "CPF", erro: `CPF inválido: "${formatCPF(cpfLimpo)}"` });
+          hasError = true;
+        } else if (cpfsVistos.has(cpfLimpo)) {
+          errors.push({ linha, campo: "CPF", erro: `CPF duplicado na planilha: "${formatCPF(cpfLimpo)}"` });
+          hasError = true;
+        }
+
+        // Validar data de nascimento
+        if (idxNasc !== -1 && dataNascRaw) {
+          if (dataNasc === "2000-01-01" && String(dataNascRaw).trim() !== "") {
+            const rawStr = String(dataNascRaw).trim();
+            // Check if it's actually meant to be 2000-01-01 or if normalization failed
+            if (rawStr !== "01/01/2000" && rawStr !== "2000-01-01") {
+              errors.push({ linha, campo: "Nascimento", erro: `Data inválida: "${rawStr}"` });
+              hasError = true;
+            }
+          }
+        }
+
+        // Validar salário
+        if (idxSalario !== -1 && salario <= 0 && row[idxSalario]) {
+          errors.push({ linha, campo: "Salário", erro: `Valor inválido: "${row[idxSalario]}"` });
+          hasError = true;
+        }
+
+        if (!hasError) {
+          cpfsVistos.add(cpfLimpo);
+          novosDados.push({
+            nome,
+            cpf: cpfLimpo,
+            sexo: idxSexo !== -1 ? normalizarSexo(row[idxSexo]) : "Masculino",
+            data_nascimento: dataNasc,
+            salario,
+            classificacao_salario: calcularClassificacao(salario),
+          });
+        }
       }
 
-      if (novosDados.length === 0) {
-        toast.error("Nenhum dado válido encontrado na planilha.");
-        return;
-      }
-
-      // Coletar CPFs da nova lista
-      const cpfsNaLista = new Set(novosDados.map((c) => c.cpf));
-
-      // Buscar colaboradores ativos atuais desta empresa/obra
+      // Buscar colaboradores ativos para calcular desligamentos
       const { data: colaboradoresAtuais } = await supabase
         .from("colaboradores")
         .select("id, cpf")
@@ -242,15 +290,39 @@ export function EditarLoteDialog({ lote, open, onOpenChange }: EditarLoteDialogP
         .eq("obra_id", lote.obra?.id)
         .eq("status", "ativo");
 
+      const cpfsNaLista = new Set(novosDados.map((c) => c.cpf));
+      const idsParaDesligar = (colaboradoresAtuais || [])
+        .filter((c) => !cpfsNaLista.has(c.cpf))
+        .map((c) => c.id);
+
+      setImportErrors(errors);
+      setImportValidCount(novosDados.length);
+      setPendingImportData(novosDados);
+      setPendingDesligarIds(idsParaDesligar);
+      setImportStep("review");
+    } catch (error: any) {
+      console.error(error);
+      toast.error("Erro ao processar arquivo: " + error.message);
+    } finally {
+      setReplacingLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Confirmar importação após revisão (fase 2)
+  const confirmReplace = async () => {
+    if (!pendingImportData || pendingImportData.length === 0) return;
+
+    setReplacingLoading(true);
+    try {
       // Deletar itens antigos do lote
       await supabase.from("colaboradores_lote").delete().eq("lote_id", lote.id);
 
-      // Inserir novos colaboradores
       const BATCH_SIZE = 100;
-      for (let i = 0; i < novosDados.length; i += BATCH_SIZE) {
-        const batch = novosDados.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < pendingImportData.length; i += BATCH_SIZE) {
+        const batch = pendingImportData.slice(i, i + BATCH_SIZE);
 
-        const mestraData = batch.map((c) => ({
+        const mestraData = batch.map((c: any) => ({
           empresa_id: lote.empresa_id,
           obra_id: lote.obra?.id,
           nome: c.nome,
@@ -271,7 +343,7 @@ export function EditarLoteDialog({ lote, open, onOpenChange }: EditarLoteDialogP
 
         const cpfToIdMap = new Map(upsertedCols?.map((c) => [c.cpf, c.id]));
 
-        const loteItemsData = batch.map((c) => ({
+        const loteItemsData = batch.map((c: any) => ({
           lote_id: lote.id,
           colaborador_id: cpfToIdMap.get(c.cpf),
           nome: c.nome,
@@ -287,13 +359,9 @@ export function EditarLoteDialog({ lote, open, onOpenChange }: EditarLoteDialogP
       }
 
       // Marcar colaboradores ausentes como desligados
-      const idsParaDesligar = (colaboradoresAtuais || [])
-        .filter((c) => !cpfsNaLista.has(c.cpf))
-        .map((c) => c.id);
-
-      if (idsParaDesligar.length > 0) {
-        for (let i = 0; i < idsParaDesligar.length; i += BATCH_SIZE) {
-          const chunkIds = idsParaDesligar.slice(i, i + BATCH_SIZE);
+      if (pendingDesligarIds.length > 0) {
+        for (let i = 0; i < pendingDesligarIds.length; i += BATCH_SIZE) {
+          const chunkIds = pendingDesligarIds.slice(i, i + BATCH_SIZE);
           await supabase
             .from("colaboradores")
             .update({ status: "desligado", updated_at: new Date().toISOString() })
@@ -302,27 +370,29 @@ export function EditarLoteDialog({ lote, open, onOpenChange }: EditarLoteDialogP
       }
 
       // Atualizar totais do lote
-      const valorTotal = novosDados.length * 50;
+      const valorTotal = pendingImportData.length * 50;
       await supabase
         .from("lotes_mensais")
         .update({
-          total_colaboradores: novosDados.length,
-          total_aprovados: novosDados.length,
+          total_colaboradores: pendingImportData.length,
+          total_aprovados: pendingImportData.length,
           valor_total: valorTotal,
           updated_at: new Date().toISOString(),
         })
         .eq("id", lote.id);
 
-      toast.success(`Lote substituído! ${novosDados.length} colaboradores. ${idsParaDesligar.length} desligados.`);
+      toast.success(`Lote substituído! ${pendingImportData.length} colaboradores. ${pendingDesligarIds.length} desligados.`);
       queryClient.invalidateQueries({ queryKey: ["itens-lote", lote.id] });
       queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
       setIsReplacing(false);
+      setImportStep("upload");
+      setPendingImportData(null);
+      setImportErrors([]);
     } catch (error: any) {
       console.error(error);
-      toast.error("Erro ao processar arquivo: " + error.message);
+      toast.error("Erro ao importar: " + error.message);
     } finally {
       setReplacingLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -449,59 +519,122 @@ export function EditarLoteDialog({ lote, open, onOpenChange }: EditarLoteDialogP
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 space-y-4 animate-in fade-in">
               <div className="flex justify-between items-center">
                 <h4 className="font-semibold text-blue-800">Substituir Lote por Nova Planilha</h4>
-                <Button variant="ghost" size="sm" onClick={() => setIsReplacing(false)}>
+                <Button variant="ghost" size="sm" onClick={() => { setIsReplacing(false); setImportStep("upload"); setImportErrors([]); setPendingImportData(null); }}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-sm text-blue-700">
-                O lote atual será substituído. Colaboradores ausentes na nova lista serão marcados como desligados.
-              </p>
-              <div
-                className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center cursor-pointer hover:bg-blue-100 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {replacingLoading ? (
-                  <Loader2 className="mx-auto h-10 w-10 text-blue-500 animate-spin" />
-                ) : (
-                  <>
-                    <Upload className="mx-auto h-10 w-10 text-blue-500 mb-2" />
-                    <p className="font-medium text-blue-800">Clique para selecionar arquivo (.xlsx)</p>
-                  </>
-                )}
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx"
-                  className="hidden"
-                  onChange={handleFileReplace}
-                  disabled={replacingLoading}
-                />
-              </div>
-              <div className="flex justify-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => {
-                    const templateData = [
-                      {
-                        "NOME": "EXEMPLO SILVA",
-                        SEXO: "Masculino",
-                        CPF: "12345678901",
-                        "DATA NASCIMENTO": "01/01/1990",
-                        SALARIO: "R$ 2.500,00",
-                      },
-                    ];
-                    const ws = XLSX.utils.json_to_sheet(templateData);
-                    ws["!cols"] = [{ wch: 30 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
-                    const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, ws, "Modelo");
-                    XLSX.writeFile(wb, "modelo_importacao.xlsx");
-                  }}
-                >
-                  <Download className="h-4 w-4" /> Baixar Modelo
-                </Button>
-              </div>
+
+              {importStep === "upload" && (
+                <>
+                  <p className="text-sm text-blue-700">
+                    O lote atual será substituído. Colaboradores ausentes na nova lista serão marcados como desligados.
+                  </p>
+                  <div
+                    className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center cursor-pointer hover:bg-blue-100 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {replacingLoading ? (
+                      <Loader2 className="mx-auto h-10 w-10 text-blue-500 animate-spin" />
+                    ) : (
+                      <>
+                        <Upload className="mx-auto h-10 w-10 text-blue-500 mb-2" />
+                        <p className="font-medium text-blue-800">Clique para selecionar arquivo (.xlsx)</p>
+                      </>
+                    )}
+                    <Input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx"
+                      className="hidden"
+                      onChange={handleFileReplace}
+                      disabled={replacingLoading}
+                    />
+                  </div>
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        const templateData = [
+                          {
+                            "NOME": "EXEMPLO SILVA",
+                            SEXO: "Masculino",
+                            CPF: "12345678901",
+                            "DATA NASCIMENTO": "01/01/1990",
+                            SALARIO: "R$ 2.500,00",
+                          },
+                        ];
+                        const ws = XLSX.utils.json_to_sheet(templateData);
+                        ws["!cols"] = [{ wch: 30 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "Modelo");
+                        XLSX.writeFile(wb, "modelo_importacao.xlsx");
+                      }}
+                    >
+                      <Download className="h-4 w-4" /> Baixar Modelo
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {importStep === "review" && (
+                <div className="space-y-4">
+                  {/* Resumo */}
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <span className="font-medium text-green-700">{importValidCount} válido(s)</span>
+                    </div>
+                    {importErrors.length > 0 && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                        <span className="font-medium text-destructive">{importErrors.length} erro(s)</span>
+                      </div>
+                    )}
+                    {pendingDesligarIds.length > 0 && (
+                      <div className="flex items-center gap-2 text-sm text-amber-700">
+                        ⚠ {pendingDesligarIds.length} será(ão) desligado(s)
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Lista de erros */}
+                  {importErrors.length > 0 && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <p className="font-medium mb-2">Linhas com erro (não serão importadas):</p>
+                        <ScrollArea className="max-h-48">
+                          <ul className="space-y-1 text-sm">
+                            {importErrors.map((err, idx) => (
+                              <li key={idx} className="flex gap-2">
+                                <span className="font-mono text-xs bg-destructive/20 px-1 rounded whitespace-nowrap">
+                                  Linha {err.linha}
+                                </span>
+                                <span>
+                                  {err.campo}: {err.erro}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </ScrollArea>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Ações */}
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => { setImportStep("upload"); setImportErrors([]); setPendingImportData(null); }}>
+                      Trocar Arquivo
+                    </Button>
+                    <Button size="sm" onClick={confirmReplace} disabled={importValidCount === 0 || replacingLoading}>
+                      {replacingLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                      Importar {importValidCount} colaborador(es)
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : !isAdding ? (
             <div className="flex justify-between items-center bg-muted/30 p-2 rounded-lg">
