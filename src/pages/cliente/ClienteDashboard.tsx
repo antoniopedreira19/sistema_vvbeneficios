@@ -55,9 +55,10 @@ const ClienteDashboard = () => {
   // Competência atual (mês/ano)
   const now = new Date();
   const currentDay = now.getDate();
+  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const competenciaAtual = format(now, "MMMM/yyyy", { locale: ptBR });
   const competenciaAtualCapitalized = competenciaAtual.charAt(0).toUpperCase() + competenciaAtual.slice(1);
-  const isJanelaAberta = currentDay <= 20;
+  const diasRestantes = lastDayOfMonth - currentDay;
 
   // Buscar dados da empresa
   const { data: empresa } = useQuery({
@@ -541,10 +542,7 @@ const ClienteDashboard = () => {
               </Button>
             </div>
             <CardDescription>
-              {isJanelaAberta 
-                ? `Dias restantes: ${20 - currentDay}` 
-                : "Janela encerrada - entre em contato com suporte"
-              }
+              Dias restantes: {diasRestantes}
             </CardDescription>
           </CardHeader>
           <CardContent>
