@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Upload, FileText, ExternalLink, X, Search } from "lucide-react";
+import { Loader2, Upload, FileText, ExternalLink, X, Search, ReceiptText, FileCheck, CreditCard } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 interface NotaFiscal {
   id: string;
   empresa_id: string;
@@ -161,6 +162,18 @@ const NotasFiscais = () => {
     }
     return filtered;
   }, [notasFiscais, mesFilter, searchTerm, nfFilter, boletoFilter]);
+
+  const kpis = useMemo(() => {
+    const mesFiltrado = mesFilter !== "todos"
+      ? notasFiscais.filter(nf => nf.competencia === mesFilter)
+      : notasFiscais;
+    const total = mesFiltrado.length;
+    const nfEmitidas = mesFiltrado.filter(nf => nf.nf_emitida).length;
+    const boletosGerados = mesFiltrado.filter(nf => nf.boleto_gerado).length;
+    const pctNf = total > 0 ? Math.round((nfEmitidas / total) * 100) : 0;
+    const pctBoleto = total > 0 ? Math.round((boletosGerados / total) * 100) : 0;
+    return { total, nfEmitidas, boletosGerados, pctNf, pctBoleto };
+  }, [notasFiscais, mesFilter]);
   if (loading) {
     return <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -172,6 +185,47 @@ const NotasFiscais = () => {
         <p className="text-muted-foreground">
           Gerenciamento de notas fiscais das empresas
         </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Lotes</CardTitle>
+            <ReceiptText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.total}</div>
+            <p className="text-xs text-muted-foreground">
+              {mesFilter !== "todos" ? mesFilter : "Todos os meses"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">NFs Emitidas</CardTitle>
+            <FileCheck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.nfEmitidas} <span className="text-sm font-normal text-muted-foreground">/ {kpis.total}</span></div>
+            <div className="flex items-center gap-2 mt-2">
+              <Progress value={kpis.pctNf} className="h-2" />
+              <span className="text-sm font-medium">{kpis.pctNf}%</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Boletos Gerados</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.boletosGerados} <span className="text-sm font-normal text-muted-foreground">/ {kpis.total}</span></div>
+            <div className="flex items-center gap-2 mt-2">
+              <Progress value={kpis.pctBoleto} className="h-2" />
+              <span className="text-sm font-medium">{kpis.pctBoleto}%</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
