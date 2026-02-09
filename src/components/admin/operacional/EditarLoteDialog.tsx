@@ -485,7 +485,7 @@ export function EditarLoteDialog({ lote, open, onOpenChange }: EditarLoteDialogP
                   onClick={() => {
                     const templateData = [
                       {
-                        "NOME COMPLETO": "EXEMPLO SILVA",
+                        "NOME": "EXEMPLO SILVA",
                         SEXO: "Masculino",
                         CPF: "12345678901",
                         "DATA NASCIMENTO": "01/01/1990",

@@ -207,15 +207,15 @@ const Historico = () => {
       cnpj = cnpj.replace(/\D/g, "");
 
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Lista Seguradora");
+      const worksheet = workbook.addWorksheet("Relação de Vidas");
       const headers = [
-        "NOME COMPLETO",
+        "NOME",
         "SEXO",
         "CPF",
         "DATA NASCIMENTO",
         "SALARIO",
         "CLASSIFICACAO SALARIAL",
-        "CNPJ DA EMPRESA",
+        "CNPJ",
       ];
       const headerRow = worksheet.addRow(headers);
 
