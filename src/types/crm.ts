@@ -40,6 +40,7 @@ export const CRM_FUNNEL_STATUSES: EmpresaStatus[] = [
   'contrato_assinado',
   'apolices_emitida',
   'acolhimento',
+  'ativa',
 ];
 
 export const LOTE_STATUS_LABELS: Record<string, string> = {

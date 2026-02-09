@@ -22,6 +22,7 @@ const CRM_COLUMNS = [
   { id: "contrato_assinado", title: "Contrato Assinado", color: "bg-blue-500" },
   { id: "apolices_emitida", title: "Apólices Emitida", color: "bg-purple-500" },
   { id: "acolhimento", title: "Acolhimento", color: "bg-teal-500" },
+  { id: "ativa", title: "Ganho", color: "bg-green-500" },
 ];
 
 const formatCNPJ = (val: string) =>
@@ -113,8 +114,8 @@ export function CRMKanban() {
   const { data: empresas = [], isLoading } = useQuery({
     queryKey: ["empresas-crm"],
     queryFn: async () => {
-      const statusList: ("sem_retorno" | "tratativa" | "contrato_assinado" | "apolices_emitida" | "acolhimento")[] = 
-        ['sem_retorno', 'tratativa', 'contrato_assinado', 'apolices_emitida', 'acolhimento'];
+      const statusList: ("sem_retorno" | "tratativa" | "contrato_assinado" | "apolices_emitida" | "acolhimento" | "ativa")[] = 
+        ['sem_retorno', 'tratativa', 'contrato_assinado', 'apolices_emitida', 'acolhimento', 'ativa'];
       const { data, error } = await supabase
         .from("empresas")
         .select("id, nome, cnpj, email_contato, telefone_contato, nome_responsavel, status, emails_contato, telefones_contato, contrato_url, created_at")
