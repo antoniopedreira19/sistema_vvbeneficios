@@ -379,67 +379,7 @@ export default function Operacional() {
     },
   });
 
-  // --- NOVA FUNÇÃO: BAIXAR EM MASSA (ZIP) ---
-  const handleBaixarEmMassa = async () => {
-    if (selectedLotesIds.size === 0) return;
 
-    setBaixandoMassa(true);
-    toast.info("Iniciando geração do ZIP. Isso pode levar alguns instantes...");
-
-    try {
-      const zip = new JSZip();
-      const lotesParaBaixar = getLotesByTab("concluido").filter((l) => selectedLotesIds.has(l.id));
-
-      let processados = 0;
-
-      for (const lote of lotesParaBaixar) {
-        try {
-          // 1. Buscar Itens
-          const itens = await fetchAllColaboradores(lote.id);
-
-          if (itens && itens.length > 0) {
-            // 2. Gerar Buffer do Excel
-            const buffer = await gerarBufferExcel(lote, itens);
-
-            // 3. Definir nome do arquivo
-            const nomeEmpresa = (lote.empresa?.nome || "EMPRESA").replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
-            const competencia = lote.competencia.replace("/", "-");
-            const fileName = `SEGURADORA_${nomeEmpresa}_${competencia}.xlsx`;
-
-            // 4. Adicionar ao ZIP
-            zip.file(fileName, buffer);
-            processados++;
-          }
-        } catch (err) {
-          console.error(`Erro ao gerar arquivo para lote ${lote.id}`, err);
-        }
-      }
-
-      if (processados === 0) {
-        toast.warning("Nenhum arquivo válido gerado.");
-        setBaixandoMassa(false);
-        return;
-      }
-
-      // 5. Gerar o arquivo ZIP final e baixar
-      const zipContent = await zip.generateAsync({ type: "blob" });
-      const url = window.URL.createObjectURL(zipContent);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Lotes_Prontos_${new Date().getTime()}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success(`${processados} arquivos baixados em ZIP!`);
-    } catch (error: any) {
-      console.error(error);
-      toast.error("Erro ao gerar ZIP: " + error.message);
-    } finally {
-      setBaixandoMassa(false);
-    }
-  };
 
   const handleFaturarMassa = async () => {
     if (selectedLotesIds.size === 0) return;
