@@ -823,7 +823,7 @@ export default function Operacional() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={handleBaixarEmMassa}
+                  onClick={handleBaixarEmMassaClick}
                   disabled={faturandoMassa || baixandoMassa}
                   className="bg-blue-600 text-white hover:bg-blue-700"
                 >
