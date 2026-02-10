@@ -506,48 +506,36 @@ const NotasFiscais = () => {
                         </Select>
                       </TableCell>
                       <TableCell>
-                        {nf.boleto_gerado ? (
+                        {nf.boleto_url ? (
                           <div className="flex items-center gap-2">
-                            {nf.boleto_url ? (
-                              <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" asChild className="gap-1">
-                                  <a href={nf.boleto_url} target="_blank" rel="noopener noreferrer">
-                                    <FileText className="h-4 w-4" />
-                                    Ver Boleto
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleRemoveFile(nf, "boleto_url")}
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-2 text-xs border rounded-md hover:bg-primary hover:text-primary-foreground">
-                                  <Upload className="h-3 w-3" />
-                                  Anexar Boleto
-                                  <Input
-                                    type="file"
-                                    accept=".pdf,.png,.jpg,.jpeg"
-                                    className="hidden"
-                                    disabled={isUploadingBoleto}
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) handleFileUpload(nf, file, "boleto_url");
-                                    }}
-                                  />
-                                </label>
-                                {isUploadingBoleto && <Loader2 className="h-4 w-4 animate-spin" />}
-                              </div>
-                            )}
+                            <Button variant="outline" size="sm" className="gap-1" onClick={() => window.open(nf.boleto_url!, '_blank')}>
+                              <FileText className="h-4 w-4" />
+                              Ver Boleto
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveFile(nf, "boleto_url")}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">Marque como gerado</span>
+                          <Button
+                            size="sm"
+                            className="gap-1"
+                            disabled={generatingBoletoId === nf.lote_id}
+                            onClick={() => handleGerarBoleto(nf.lote_id)}
+                          >
+                            {generatingBoletoId === nf.lote_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <CreditCard className="h-4 w-4" />
+                            )}
+                            {generatingBoletoId === nf.lote_id ? "Gerando..." : "Gerar Boleto"}
+                          </Button>
                         )}
                       </TableCell>
                       <TableCell>

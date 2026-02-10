@@ -447,30 +447,37 @@ const Historico = () => {
                             )}
                           </TableCell>
                           <TableCell>
-                            {notaFiscal ? (
-                              notaFiscal.boleto_gerado ? (
-                                <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Sim</Badge>
-                              ) : (
-                                <Badge variant="secondary">Não</Badge>
-                              )
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {notaFiscal?.boleto_url ? (
-                              <a
-                                href={notaFiscal.boleto_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                            {notaFiscal?.boleto_url || lote.boleto_url ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(notaFiscal?.boleto_url || lote.boleto_url, '_blank');
+                                }}
                               >
                                 <FileText className="h-4 w-4" />
                                 Ver Boleto
                                 <ExternalLink className="h-3 w-3" />
-                              </a>
+                              </Button>
                             ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
+                              <Button
+                                size="sm"
+                                className="gap-1"
+                                disabled={generatingBoletoId === lote.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGerarBoleto(lote.id);
+                                }}
+                              >
+                                {generatingBoletoId === lote.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CreditCard className="h-4 w-4" />
+                                )}
+                                {generatingBoletoId === lote.id ? "Gerando..." : "Gerar Boleto"}
+                              </Button>
                             )}
                           </TableCell>
                           <TableCell>
