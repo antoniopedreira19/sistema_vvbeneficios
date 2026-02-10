@@ -804,6 +804,7 @@ export default function Operacional() {
               selectedIds={selectedLotesIds}
               onSelectionChange={setSelectedLotesIds}
               allLotesIds={getLotesByTab("concluido").map((l) => l.id)}
+              onToggleCadastroCartao={handleToggleCadastroCartao}
             />
           </TabCard>
         </TabsContent>
