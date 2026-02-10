@@ -107,7 +107,7 @@ export default function HistoricoAdmin() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notas_fiscais")
-        .select("lote_id, nf_emitida, boleto_gerado, pago");
+        .select("lote_id, nf_emitida, nf_url, boleto_gerado, boleto_url, pago");
 
       if (error) throw error;
       return data;
