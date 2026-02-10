@@ -404,8 +404,7 @@ const NotasFiscais = () => {
                   <TableHead>Valor</TableHead>
                   <TableHead>NF Emitida</TableHead>
                   <TableHead>Anexo NF</TableHead>
-                  <TableHead>Boleto Gerado</TableHead>
-                  <TableHead>Anexo Boleto</TableHead>
+                  <TableHead>Boleto</TableHead>
                   <TableHead>Pago</TableHead>
                 </TableRow>
               </TableHeader>
@@ -490,20 +489,6 @@ const NotasFiscais = () => {
                         ) : (
                           <span className="text-xs text-muted-foreground">Marque como emitida</span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={nf.boleto_gerado ? "sim" : "nao"}
-                          onValueChange={(value) => updateField(nf.id, "boleto_gerado", value === "sim")}
-                        >
-                          <SelectTrigger className="w-[100px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="sim">Sim</SelectItem>
-                            <SelectItem value="nao">Não</SelectItem>
-                          </SelectContent>
-                        </Select>
                       </TableCell>
                       <TableCell>
                         {nf.boleto_url ? (
