@@ -491,20 +491,6 @@ const NotasFiscais = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Select
-                          value={nf.boleto_gerado ? "sim" : "nao"}
-                          onValueChange={(value) => updateField(nf.id, "boleto_gerado", value === "sim")}
-                        >
-                          <SelectTrigger className="w-[100px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="sim">Sim</SelectItem>
-                            <SelectItem value="nao">Não</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
                         {nf.boleto_url ? (
                           <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" className="gap-1" onClick={() => window.open(nf.boleto_url!, '_blank')}>
