@@ -257,7 +257,10 @@ const NotasFiscais = () => {
       filtered = filtered.filter((nf) => (nfFilter === "sim" ? nf.nf_emitida : !nf.nf_emitida));
     }
     if (boletoFilter !== "todos") {
-      filtered = filtered.filter((nf) => (boletoFilter === "sim" ? nf.boleto_gerado : !nf.boleto_gerado));
+      filtered = filtered.filter((nf) => {
+        const temBoleto = !!(nf.boleto_url || nf.lotes_mensais?.boleto_url);
+        return boletoFilter === "sim" ? temBoleto : !temBoleto;
+      });
     }
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
@@ -272,7 +275,7 @@ const NotasFiscais = () => {
       mesFilter !== "todos" ? notasFiscais.filter((nf) => nf.competencia === mesFilter) : notasFiscais;
     const total = mesFiltrado.length;
     const nfEmitidas = mesFiltrado.filter((nf) => nf.nf_emitida).length;
-    const boletosGerados = mesFiltrado.filter((nf) => nf.boleto_gerado).length;
+    const boletosGerados = mesFiltrado.filter((nf) => !!(nf.boleto_url || nf.lotes_mensais?.boleto_url)).length;
     const pagos = mesFiltrado.filter((nf) => nf.pago).length;
     const boletosNaoPagos = boletosGerados - pagos;
     const pctNf = total > 0 ? Math.round((nfEmitidas / total) * 100) : 0;
