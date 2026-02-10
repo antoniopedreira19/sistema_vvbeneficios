@@ -81,6 +81,8 @@ export default function HistoricoAdmin() {
   const [competenciaFilter, setCompetenciaFilter] = useState<string>("todas");
   const [sortBy, setSortBy] = useState<"alfabetica" | "recente">("recente");
   const [currentPage, setCurrentPage] = useState(1);
+  const [modeloPlanilhaDialogOpen, setModeloPlanilhaDialogOpen] = useState(false);
+  const [loteParaDownload, setLoteParaDownload] = useState<LoteFaturado | null>(null);
 
   const competencias = gerarCompetencias();
 
