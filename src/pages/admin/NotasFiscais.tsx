@@ -524,7 +524,7 @@ const NotasFiscais = () => {
                             size="sm"
                             className="gap-1"
                             disabled={generatingBoletoId === nf.lote_id}
-                            onClick={() => handleGerarBoleto(nf.lote_id)}
+                            onClick={() => handleGerarBoleto(nf.lote_id, nf.id)}
                           >
                             {generatingBoletoId === nf.lote_id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
