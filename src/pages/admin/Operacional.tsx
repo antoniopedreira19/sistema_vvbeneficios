@@ -652,7 +652,7 @@ export default function Operacional() {
           </Select>
 
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortType)}>
-            <SelectTrigger className="w-full md:w-[180px] bg-background">
+            <SelectTrigger className="w-full sm:w-[170px] bg-background">
               <ArrowUpDown className="mr-2 h-4 w-4 text-muted-foreground" />
               <SelectValue placeholder="Ordenar por" />
             </SelectTrigger>
