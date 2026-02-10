@@ -191,13 +191,27 @@ const NotasFiscais = () => {
   };
   const handleRemoveFile = async (notaFiscal: NotaFiscal, field: "nf_url" | "boleto_url") => {
     try {
-      const url = notaFiscal[field];
+      const url = notaFiscal[field] || (field === "boleto_url" ? (notaFiscal.lotes_mensais as any)?.boleto_url : null);
       if (url) {
-        const urlParts = url.split("/");
-        const fileName = urlParts[urlParts.length - 1];
-        await supabase.storage.from("notas-fiscais").remove([fileName]);
+        // Only try to remove from storage if it's a Supabase storage URL
+        if (url.includes("supabase")) {
+          const urlParts = url.split("/");
+          const fileName = urlParts[urlParts.length - 1];
+          await supabase.storage.from("notas-fiscais").remove([fileName]);
+        }
       }
       await updateField(notaFiscal.id, field, null);
+      if (field === "boleto_url") {
+        await supabase.from("lotes_mensais").update({ boleto_url: null }).eq("id", notaFiscal.lote_id);
+        // Update local state to reflect lotes_mensais change
+        setNotasFiscais((prev) =>
+          prev.map((nf) =>
+            nf.id === notaFiscal.id
+              ? { ...nf, lotes_mensais: { ...nf.lotes_mensais, boleto_url: null } as any }
+              : nf
+          )
+        );
+      }
       toast.success("Arquivo removido com sucesso");
     } catch (error: any) {
       console.error("Erro ao remover arquivo:", error);
