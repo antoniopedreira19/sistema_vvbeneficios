@@ -9,7 +9,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Loader2, Send, FileCheck, AlertTriangle, CreditCard, FileDown, Pencil, Check, X } from "lucide-react";
+import { Loader2, Send, FileCheck, AlertTriangle, CreditCard, FileDown, Pencil, Check, X, CheckCircle2, XCircle } from "lucide-react";
 
 export interface LoteOperacional {
   id: string;
