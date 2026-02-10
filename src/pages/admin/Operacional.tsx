@@ -140,6 +140,7 @@ export default function Operacional() {
   // Estados de Filtro e Ordenação
   const [searchTerm, setSearchTerm] = useState("");
   const [competenciaFilter, setCompetenciaFilter] = useState<string>("todas");
+  const [cadastroCartaoFilter, setCadastroCartaoFilter] = useState<string>("todos");
   const [sortBy, setSortBy] = useState<SortType>("alfabetica");
 
   const [pages, setPages] = useState<Record<TabType, number>>({
