@@ -37,6 +37,7 @@ interface LotesTableProps {
   onEdit?: (lote: LoteOperacional) => void;
   onResolve?: (lote: LoteOperacional) => void;
   onReject?: (lote: LoteOperacional) => void;
+  onToggleCadastroCartao?: (lote: LoteOperacional) => void;
   actionLoading?: string | null;
   // Props para seleção em massa
   selectable?: boolean;
