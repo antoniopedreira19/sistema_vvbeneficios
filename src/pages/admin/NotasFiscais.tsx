@@ -104,7 +104,7 @@ const NotasFiscais = () => {
           *,
           empresas(nome),
           obras(nome),
-          lotes_mensais(valor_total)
+          lotes_mensais(valor_total, boleto_url)
         `,
         )
         .order("competencia", {
