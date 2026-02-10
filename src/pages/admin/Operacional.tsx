@@ -994,6 +994,7 @@ function renderTabContent(
           actionLoading={actionLoading}
           onDownload={onDownload}
           onEdit={onEdit}
+          onToggleCadastroCartao={onToggleCadastroCartao}
         />
       </TabCard>
     </TabsContent>
