@@ -215,7 +215,10 @@ export default function Operacional() {
     .filter((l) => {
       const matchSearch = l.empresa?.nome?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchCompetencia = competenciaFilter === "todas" || l.competencia === competenciaFilter;
-      return matchSearch && matchCompetencia;
+      const matchCadastroCartao = cadastroCartaoFilter === "todos" || 
+        (cadastroCartaoFilter === "sim" && l.cadastro_cartao) || 
+        (cadastroCartaoFilter === "nao" && !l.cadastro_cartao);
+      return matchSearch && matchCompetencia && matchCadastroCartao;
     })
     .sort((a, b) => {
       if (sortBy === "alfabetica") {
