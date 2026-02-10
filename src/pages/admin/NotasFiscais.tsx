@@ -44,6 +44,7 @@ interface NotaFiscal {
   } | null;
   lotes_mensais: {
     valor_total: number;
+    boleto_url: string | null;
   } | null;
 }
 const getCompetenciaAtual = () => {
