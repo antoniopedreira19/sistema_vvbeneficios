@@ -58,6 +58,7 @@ export function LotesTable({
   onEdit,
   onResolve,
   onReject,
+  onToggleCadastroCartao,
   actionLoading,
   selectable = false,
   selectedIds = new Set(),
