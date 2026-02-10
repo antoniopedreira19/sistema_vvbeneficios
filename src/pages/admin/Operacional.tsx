@@ -704,6 +704,7 @@ export default function Operacional() {
           getTotalPages,
           handleDownloadLote,
           setLoteParaEditar,
+          handleToggleCadastroCartao,
         )}
         {renderTabContent(
           "seguradora",
@@ -718,6 +719,7 @@ export default function Operacional() {
           getTotalPages,
           handleDownloadLote,
           setLoteParaEditar,
+          handleToggleCadastroCartao,
         )}
         <TabsContent value="pendencia" className="mt-6">
           <TabCard title="Lotes com Pendências (Reprovados)" icon={AlertTriangle} color="text-red-500">
