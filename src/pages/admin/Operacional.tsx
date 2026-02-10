@@ -575,26 +575,90 @@ export default function Operacional() {
     },
   });
 
-  const handleDownloadLote = async (lote: LoteOperacional) => {
-    try {
-      toast.info("Preparando download...");
-      const itens = await fetchAllColaboradores(lote.id);
-      if (!itens || itens.length === 0) {
-        toast.warning("Não há colaboradores para baixar.");
-        return;
+  const handleDownloadLote = (lote: LoteOperacional) => {
+    setLoteParaDownload(lote);
+    setDownloadModoMassa(false);
+    setModeloPlanilhaDialogOpen(true);
+  };
+
+  const handleBaixarEmMassaClick = () => {
+    if (selectedLotesIds.size === 0) return;
+    setDownloadModoMassa(true);
+    setLoteParaDownload(null);
+    setModeloPlanilhaDialogOpen(true);
+  };
+
+  const handleModeloSelecionado = async (modelo: ModeloPlanilha) => {
+    const gerador = modelo === "padrao_clube" ? gerarBufferExcelClube : gerarBufferExcel;
+
+    if (downloadModoMassa) {
+      // Baixar em massa (ZIP)
+      setBaixandoMassa(true);
+      toast.info("Iniciando geração do ZIP...");
+      try {
+        const zip = new JSZip();
+        const lotesParaBaixar = getLotesByTab("concluido").filter((l) => selectedLotesIds.has(l.id));
+        let processados = 0;
+
+        for (const lote of lotesParaBaixar) {
+          try {
+            const itens = await fetchAllColaboradores(lote.id);
+            if (itens && itens.length > 0) {
+              const buffer = await gerador(lote, itens);
+              const nomeEmpresa = (lote.empresa?.nome || "EMPRESA").replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+              const competencia = lote.competencia.replace("/", "-");
+              const fileName = `SEGURADORA_${nomeEmpresa}_${competencia}.xlsx`;
+              zip.file(fileName, buffer);
+              processados++;
+            }
+          } catch (err) {
+            console.error(`Erro ao gerar arquivo para lote ${lote.id}`, err);
+          }
+        }
+
+        if (processados === 0) {
+          toast.warning("Nenhum arquivo válido gerado.");
+          return;
+        }
+
+        const zipContent = await zip.generateAsync({ type: "blob" });
+        const url = window.URL.createObjectURL(zipContent);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Lotes_Prontos_${new Date().getTime()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success(`${processados} arquivos baixados em ZIP!`);
+      } catch (error: any) {
+        console.error(error);
+        toast.error("Erro ao gerar ZIP: " + error.message);
+      } finally {
+        setBaixandoMassa(false);
       }
-      const buffer = await gerarBufferExcel(lote, itens);
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `SEGURADORA_${lote.empresa?.nome.replace(/[^a-zA-Z0-9]/g, "")}_${lote.competencia.replace("/", "-")}.xlsx`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      toast.success("Download concluído.");
-    } catch (e: any) {
-      console.error(e);
-      toast.error("Erro ao gerar planilha: " + e.message);
+    } else if (loteParaDownload) {
+      // Download individual
+      try {
+        toast.info("Preparando download...");
+        const itens = await fetchAllColaboradores(loteParaDownload.id);
+        if (!itens || itens.length === 0) {
+          toast.warning("Não há colaboradores para baixar.");
+          return;
+        }
+        const buffer = await gerador(loteParaDownload, itens);
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `SEGURADORA_${loteParaDownload.empresa?.nome.replace(/[^a-zA-Z0-9]/g, "")}_${loteParaDownload.competencia.replace("/", "-")}.xlsx`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        toast.success("Download concluído.");
+      } catch (e: any) {
+        console.error(e);
+        toast.error("Erro ao gerar planilha: " + e.message);
+      }
     }
   };
 
