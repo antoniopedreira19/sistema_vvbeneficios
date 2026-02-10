@@ -591,17 +591,16 @@ export default function Operacional() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Building2 className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Operacional</h1>
-            <p className="text-muted-foreground">Gestão de Fluxo de Lotes</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <Building2 className="h-8 w-8 text-primary" />
+        <div>
+          <h1 className="text-3xl font-bold">Operacional</h1>
+          <p className="text-muted-foreground">Gestão de Fluxo de Lotes</p>
         </div>
+      </div>
 
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-          <div className="relative w-full md:w-64">
+      <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por empresa..."
@@ -621,7 +620,7 @@ export default function Operacional() {
               setPages({ entrada: 1, seguradora: 1, pendencia: 1, concluido: 1 });
             }}
           >
-            <SelectTrigger className="w-full md:w-[180px] bg-background">
+            <SelectTrigger className="w-full sm:w-[170px] bg-background">
               <SelectValue placeholder="Competência" />
             </SelectTrigger>
             <SelectContent>
@@ -641,7 +640,7 @@ export default function Operacional() {
               setPages({ entrada: 1, seguradora: 1, pendencia: 1, concluido: 1 });
             }}
           >
-            <SelectTrigger className="w-full md:w-[180px] bg-background">
+            <SelectTrigger className="w-full sm:w-[170px] bg-background">
               <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
               <SelectValue placeholder="Cadastro Cartão" />
             </SelectTrigger>
@@ -653,7 +652,7 @@ export default function Operacional() {
           </Select>
 
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortType)}>
-            <SelectTrigger className="w-full md:w-[180px] bg-background">
+            <SelectTrigger className="w-full sm:w-[170px] bg-background">
               <ArrowUpDown className="mr-2 h-4 w-4 text-muted-foreground" />
               <SelectValue placeholder="Ordenar por" />
             </SelectTrigger>
@@ -668,7 +667,6 @@ export default function Operacional() {
           </Button>
 
           <CobrancaMassaDialog />
-        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)}>
