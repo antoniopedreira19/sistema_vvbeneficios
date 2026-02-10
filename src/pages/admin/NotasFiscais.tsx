@@ -404,8 +404,7 @@ const NotasFiscais = () => {
                   <TableHead>Valor</TableHead>
                   <TableHead>NF Emitida</TableHead>
                   <TableHead>Anexo NF</TableHead>
-                  <TableHead>Boleto Gerado</TableHead>
-                  <TableHead>Anexo Boleto</TableHead>
+                  <TableHead>Boleto</TableHead>
                   <TableHead>Pago</TableHead>
                 </TableRow>
               </TableHeader>
