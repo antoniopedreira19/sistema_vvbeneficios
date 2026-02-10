@@ -37,8 +37,9 @@ import { AdminImportarLoteDialog } from "@/components/admin/operacional/AdminImp
 import { EditarLoteDialog } from "@/components/admin/operacional/EditarLoteDialog";
 import { CobrancaMassaDialog } from "@/components/admin/operacional/CobrancaMassaDialog";
 import ExcelJS from "exceljs";
-import JSZip from "jszip"; // Importante: Importar o JSZip
+import JSZip from "jszip";
 import { formatCNPJ, formatCPF } from "@/lib/validators";
+import { EscolherModeloPlanilhaDialog, type ModeloPlanilha } from "@/components/admin/operacional/EscolherModeloPlanilhaDialog";
 
 const ITEMS_PER_PAGE = 100;
 
