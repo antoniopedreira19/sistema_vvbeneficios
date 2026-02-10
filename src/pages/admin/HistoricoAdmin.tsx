@@ -482,6 +482,11 @@ export default function HistoricoAdmin() {
           )}
         </CardContent>
       </Card>
+      <EscolherModeloPlanilhaDialog
+        open={modeloPlanilhaDialogOpen}
+        onOpenChange={setModeloPlanilhaDialogOpen}
+        onSelect={handleModeloSelecionado}
+      />
     </div>
   );
 }
