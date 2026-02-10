@@ -331,7 +331,7 @@ export default function HistoricoAdmin() {
                     const vidas = (lote.total_colaboradores || 0) - (lote.total_reprovados || 0);
                     const nota = notasMap.get(lote.id);
                     const nfEmitida = nota?.nf_emitida || false;
-                    const boletoUrl = nota?.boleto_url || null;
+                    const boletoUrl = nota?.boleto_url || lote.boleto_url || null;
                     const boletoGerado = !!(nota?.boleto_gerado || boletoUrl);
                     const nfUrl = nota?.nf_url || null;
                     const pago = nota?.pago || false;
