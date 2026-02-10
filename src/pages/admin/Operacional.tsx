@@ -134,7 +134,55 @@ const gerarBufferExcel = async (lote: LoteOperacional, itens: any[]) => {
   return await workbook.xlsx.writeBuffer();
 };
 
-export default function Operacional() {
+// --- FUNÇÃO DE GERAÇÃO DO EXCEL PADRÃO CLUBE ---
+const gerarBufferExcelClube = async (lote: LoteOperacional, itens: any[]) => {
+  const cpfsProcessados = new Set();
+  const itensUnicos = itens.filter((item: any) => {
+    const cpfLimpo = item.cpf.replace(/\D/g, "");
+    if (cpfsProcessados.has(cpfLimpo)) return false;
+    cpfsProcessados.add(cpfLimpo);
+    return true;
+  });
+  itensUnicos.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+
+  const nomeEmpresa = lote.empresa?.nome || "EMPRESA";
+  const plano = `SINTEPAV-${nomeEmpresa}`;
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Relação de Vidas");
+
+  const headers = ["NOME", "CPF", "PLANO", "DATA NASCIMENTO", "EXPIRAÇÃO"];
+  const headerRow = worksheet.addRow(headers);
+
+  const COL_WIDTH = 37.11;
+  worksheet.columns = headers.map(() => ({ width: COL_WIDTH }));
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
+    cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+    cell.alignment = { horizontal: "center" };
+  });
+
+  const expiracao = new Date(2040, 0, 1); // 01/01/2040
+
+  itensUnicos.forEach((c: any) => {
+    let dataNascDate = null;
+    if (c.data_nascimento) {
+      const parts = c.data_nascimento.split("-");
+      if (parts.length === 3) dataNascDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    }
+    const row = worksheet.addRow([
+      c.nome?.toUpperCase(),
+      formatCPF(c.cpf),
+      plano,
+      dataNascDate,
+      expiracao,
+    ]);
+    if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
+    row.getCell(5).numFmt = "dd/mm/yyyy";
+  });
+
+  return await workbook.xlsx.writeBuffer();
+};
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>("entrada");
 
