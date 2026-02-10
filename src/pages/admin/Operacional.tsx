@@ -217,7 +217,10 @@ export default function Operacional() {
   const [selectedLotesIds, setSelectedLotesIds] = useState<Set<string>>(new Set());
   const [confirmFaturarMassaDialog, setConfirmFaturarMassaDialog] = useState(false);
   const [faturandoMassa, setFaturandoMassa] = useState(false);
-  const [baixandoMassa, setBaixandoMassa] = useState(false); // Novo estado
+  const [baixandoMassa, setBaixandoMassa] = useState(false);
+  const [modeloPlanilhaDialogOpen, setModeloPlanilhaDialogOpen] = useState(false);
+  const [loteParaDownload, setLoteParaDownload] = useState<LoteOperacional | null>(null);
+  const [downloadModoMassa, setDownloadModoMassa] = useState(false);
 
   // --- QUERY ---
   const { data: lotes = [], isLoading } = useQuery({
