@@ -330,7 +330,9 @@ export default function HistoricoAdmin() {
                     const vidas = (lote.total_colaboradores || 0) - (lote.total_reprovados || 0);
                     const nota = notasMap.get(lote.id);
                     const nfEmitida = nota?.nf_emitida || false;
-                    const boletoGerado = nota?.boleto_gerado || false;
+                    const boletoUrl = nota?.boleto_url || null;
+                    const boletoGerado = !!(nota?.boleto_gerado || boletoUrl);
+                    const nfUrl = nota?.nf_url || null;
                     const pago = nota?.pago || false;
 
                     return (
@@ -370,14 +372,42 @@ export default function HistoricoAdmin() {
                            )}
                          </TableCell>
                          <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDownload(lote)}
-                            title="Baixar lista"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              <DropdownMenuItem onClick={() => handleDownload(lote)}>
+                                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                Baixar Planilha
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              {boletoUrl ? (
+                                <DropdownMenuItem onClick={() => window.open(boletoUrl, "_blank")}>
+                                  <CreditCard className="h-4 w-4 mr-2" />
+                                  Ver Boleto
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem disabled className="text-muted-foreground">
+                                  <CreditCard className="h-4 w-4 mr-2" />
+                                  Boleto não disponível
+                                </DropdownMenuItem>
+                              )}
+                              {nfUrl ? (
+                                <DropdownMenuItem onClick={() => window.open(nfUrl, "_blank")}>
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Ver Nota Fiscal
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem disabled className="text-muted-foreground">
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  NF não disponível
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );
