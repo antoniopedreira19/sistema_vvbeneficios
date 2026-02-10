@@ -41,15 +41,39 @@ import { formatCPF, formatCNPJ } from "@/lib/validators";
 import ExcelJS from "exceljs";
 import { toast } from "sonner";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 const ITEMS_PER_PAGE = 10;
 
 const Historico = () => {
   const { profile, loading: profileLoading } = useUserRole();
   const empresaId = profile?.empresa_id;
+  const queryClient = useQueryClient();
 
   const [selectedObra, setSelectedObra] = useState("all");
   const [selectedCompetencia, setSelectedCompetencia] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [generatingBoletoId, setGeneratingBoletoId] = useState<string | null>(null);
+
+  const handleGerarBoleto = async (loteId: string) => {
+    setGeneratingBoletoId(loteId);
+    try {
+      const response = await fetch("https://grifoworkspace.app.n8n.cloud/webhook/gerar-boleto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loteId }),
+      });
+      if (!response.ok) throw new Error("Erro na requisição");
+      toast.success("Boleto gerado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
+      queryClient.invalidateQueries({ queryKey: ["notas-fiscais-cliente"] });
+    } catch (error) {
+      console.error("Erro ao gerar boleto:", error);
+      toast.error("Erro ao gerar boleto. Tente novamente.");
+    } finally {
+      setGeneratingBoletoId(null);
+    }
+  };
 
   // Buscar obras da empresa
   const { data: obras, isLoading: obrasLoading } = useQuery({
