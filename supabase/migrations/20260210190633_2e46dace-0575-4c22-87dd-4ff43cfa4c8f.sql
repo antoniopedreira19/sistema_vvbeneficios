@@ -1,0 +1,1 @@
+ALTER TABLE public.lotes_mensais ADD COLUMN cadastro_cartao boolean NOT NULL DEFAULT false;

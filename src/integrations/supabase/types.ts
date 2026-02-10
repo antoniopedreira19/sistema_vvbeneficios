@@ -434,6 +434,7 @@ export type Database = {
           asaas_payment_id: string | null
           boleto_url: string | null
           boleto_vencimento: string | null
+          cadastro_cartao: boolean
           competencia: string
           cotado_em: string | null
           created_at: string
@@ -461,6 +462,7 @@ export type Database = {
           asaas_payment_id?: string | null
           boleto_url?: string | null
           boleto_vencimento?: string | null
+          cadastro_cartao?: boolean
           competencia: string
           cotado_em?: string | null
           created_at?: string
@@ -488,6 +490,7 @@ export type Database = {
           asaas_payment_id?: string | null
           boleto_url?: string | null
           boleto_vencimento?: string | null
+          cadastro_cartao?: boolean
           competencia?: string
           cotado_em?: string | null
           created_at?: string
