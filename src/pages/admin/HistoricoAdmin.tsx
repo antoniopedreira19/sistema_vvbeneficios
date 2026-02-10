@@ -54,6 +54,7 @@ interface LoteFaturado {
   empresa_id: string;
   empresa: { nome: string; cnpj: string } | null;
   obra: { id: string; nome: string } | null;
+  boleto_url: string | null;
 }
 
 const ITEMS_PER_PAGE = 10;
