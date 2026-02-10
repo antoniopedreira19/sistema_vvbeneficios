@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import { formatCNPJ, formatCPF } from "@/lib/validators";
+import { EscolherModeloPlanilhaDialog, ModeloPlanilha } from "@/components/admin/operacional/EscolherModeloPlanilhaDialog";
 
 interface LoteFaturado {
   id: string;
