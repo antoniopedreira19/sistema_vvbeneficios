@@ -74,8 +74,16 @@ const NotasFiscais = () => {
         body: JSON.stringify({ loteId }),
       });
       if (!response.ok) throw new Error("Erro na requisição");
-      const result = await response.json();
-      const boletoUrl = result?.boleto_url || result?.bankSlipUrl || result?.invoiceUrl || null;
+      
+      let boletoUrl: string | null = null;
+      try {
+        const result = await response.json();
+        console.log("Resposta do webhook:", result);
+        boletoUrl = result?.boleto_url || result?.bankSlipUrl || result?.invoiceUrl || null;
+      } catch {
+        console.warn("Resposta do webhook não é JSON válido");
+      }
+
       if (boletoUrl) {
         await supabase.from("notas_fiscais").update({
           boleto_url: boletoUrl,
@@ -85,7 +93,7 @@ const NotasFiscais = () => {
         await supabase.from("lotes_mensais").update({
           boleto_url: boletoUrl,
         }).eq("id", loteId);
-        // Update local state without refetching
+        // Update local state immediately
         setNotasFiscais((prev) =>
           prev.map((nf) =>
             nf.lote_id === loteId
@@ -94,13 +102,17 @@ const NotasFiscais = () => {
                   boleto_url: boletoUrl,
                   boleto_gerado: true,
                   boleto_gerado_em: new Date().toISOString(),
-                  lotes_mensais: { ...nf.lotes_mensais, boleto_url: boletoUrl } as any,
+                  lotes_mensais: { ...(nf.lotes_mensais || {}), valor_total: nf.lotes_mensais?.valor_total || 0, boleto_url: boletoUrl },
                 }
               : nf
           )
         );
+        toast.success("Boleto gerado com sucesso!");
+      } else {
+        // URL not in response, refetch from DB to get latest state
+        toast.success("Boleto gerado! Atualizando dados...");
+        await fetchNotasFiscais();
       }
-      toast.success("Boleto gerado com sucesso!");
     } catch (error) {
       console.error("Erro ao gerar boleto:", error);
       toast.error("Erro ao gerar boleto. Tente novamente.");
