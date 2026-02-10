@@ -183,6 +183,8 @@ const gerarBufferExcelClube = async (lote: LoteOperacional, itens: any[]) => {
 
   return await workbook.xlsx.writeBuffer();
 };
+
+export default function Operacional() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>("entrada");
 
