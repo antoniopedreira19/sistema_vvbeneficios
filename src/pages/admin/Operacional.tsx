@@ -176,7 +176,7 @@ export default function Operacional() {
         .from("lotes_mensais")
         .select(
           `
-          id, competencia, total_colaboradores, total_reprovados, total_aprovados, valor_total, created_at, status, empresa_id,
+          id, competencia, total_colaboradores, total_reprovados, total_aprovados, valor_total, created_at, status, empresa_id, cadastro_cartao,
           empresa:empresas(nome, cnpj),
           obra:obras(id, nome) 
         `,
