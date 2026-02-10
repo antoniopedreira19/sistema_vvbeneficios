@@ -974,6 +974,7 @@ function renderTabContent(
   getTotal: any,
   onDownload: any,
   onEdit: any,
+  onToggleCadastroCartao: any,
 ) {
   return (
     <TabsContent value={value} className="mt-6">
