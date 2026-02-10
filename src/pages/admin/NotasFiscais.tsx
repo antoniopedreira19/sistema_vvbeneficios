@@ -228,12 +228,12 @@ const NotasFiscais = () => {
       }
       await updateField(notaFiscal.id, field, null);
       if (field === "boleto_url") {
-        await supabase.from("lotes_mensais").update({ boleto_url: null }).eq("id", notaFiscal.lote_id);
-        // Update local state to reflect lotes_mensais change
+        await supabase.from("notas_fiscais").update({ boleto_gerado: false, boleto_gerado_em: null }).eq("id", notaFiscal.id);
+        await supabase.from("lotes_mensais").update({ boleto_url: null, boleto_vencimento: null, asaas_payment_id: null }).eq("id", notaFiscal.lote_id);
         setNotasFiscais((prev) =>
           prev.map((nf) =>
             nf.id === notaFiscal.id
-              ? { ...nf, lotes_mensais: { ...nf.lotes_mensais, boleto_url: null } as any }
+              ? { ...nf, boleto_gerado: false, boleto_gerado_em: null, lotes_mensais: { ...(nf.lotes_mensais || {}), valor_total: nf.lotes_mensais?.valor_total || 0, boleto_url: null } }
               : nf
           )
         );
