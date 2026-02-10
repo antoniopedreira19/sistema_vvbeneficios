@@ -562,6 +562,20 @@ export default function Operacional() {
     setConfirmRejeitarDialog(true);
   };
 
+  const handleToggleCadastroCartao = async (lote: LoteOperacional) => {
+    const newValue = !lote.cadastro_cartao;
+    const { error } = await supabase
+      .from("lotes_mensais")
+      .update({ cadastro_cartao: newValue })
+      .eq("id", lote.id);
+    if (error) {
+      toast.error("Erro ao atualizar cadastro cartão");
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
+    toast.success(newValue ? "Cadastro cartão marcado" : "Cadastro cartão desmarcado");
+  };
+
   const handleConfirmarEnvio = () => {
     if (!selectedLote) return;
     enviarNovoMutation.mutate(selectedLote);
