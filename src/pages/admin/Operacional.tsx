@@ -620,6 +620,24 @@ export default function Operacional() {
             </SelectContent>
           </Select>
 
+          <Select
+            value={cadastroCartaoFilter}
+            onValueChange={(v) => {
+              setCadastroCartaoFilter(v);
+              setPages({ entrada: 1, seguradora: 1, pendencia: 1, concluido: 1 });
+            }}
+          >
+            <SelectTrigger className="w-full md:w-[180px] bg-background">
+              <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Cadastro Cartão" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="sim">Com Cartão</SelectItem>
+              <SelectItem value="nao">Sem Cartão</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortType)}>
             <SelectTrigger className="w-full md:w-[180px] bg-background">
               <ArrowUpDown className="mr-2 h-4 w-4 text-muted-foreground" />
