@@ -736,6 +736,7 @@ export default function Operacional() {
               onEdit={setLoteParaEditar}
               onResolve={handleResolve}
               onReject={handleReject}
+              onToggleCadastroCartao={handleToggleCadastroCartao}
             />
           </TabCard>
         </TabsContent>
