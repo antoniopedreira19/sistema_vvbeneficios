@@ -286,6 +286,7 @@ export type Database = {
       }
       empresas: {
         Row: {
+          asaas_customer_id: string | null
           cnpj: string
           contrato_url: string | null
           created_at: string
@@ -304,6 +305,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          asaas_customer_id?: string | null
           cnpj: string
           contrato_url?: string | null
           created_at?: string
@@ -322,6 +324,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          asaas_customer_id?: string | null
           cnpj?: string
           contrato_url?: string | null
           created_at?: string
@@ -428,6 +431,9 @@ export type Database = {
           adendo_url: string | null
           aprovado_em: string | null
           arquivo_url: string | null
+          asaas_payment_id: string | null
+          boleto_url: string | null
+          boleto_vencimento: string | null
           competencia: string
           cotado_em: string | null
           created_at: string
@@ -452,6 +458,9 @@ export type Database = {
           adendo_url?: string | null
           aprovado_em?: string | null
           arquivo_url?: string | null
+          asaas_payment_id?: string | null
+          boleto_url?: string | null
+          boleto_vencimento?: string | null
           competencia: string
           cotado_em?: string | null
           created_at?: string
@@ -476,6 +485,9 @@ export type Database = {
           adendo_url?: string | null
           aprovado_em?: string | null
           arquivo_url?: string | null
+          asaas_payment_id?: string | null
+          boleto_url?: string | null
+          boleto_vencimento?: string | null
           competencia?: string
           cotado_em?: string | null
           created_at?: string
