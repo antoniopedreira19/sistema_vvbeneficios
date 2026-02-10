@@ -64,6 +64,13 @@ const Historico = () => {
         body: JSON.stringify({ loteId }),
       });
       if (!response.ok) throw new Error("Erro na requisição");
+      const result = await response.json();
+      const boletoUrl = result?.boleto_url || result?.bankSlipUrl || result?.invoiceUrl || null;
+      if (boletoUrl) {
+        await supabase.from("lotes_mensais").update({
+          boleto_url: boletoUrl,
+        }).eq("id", loteId);
+      }
       toast.success("Boleto gerado com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
       queryClient.invalidateQueries({ queryKey: ["notas-fiscais-cliente"] });
