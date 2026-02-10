@@ -54,6 +54,7 @@ interface LoteFaturado {
   empresa_id: string;
   empresa: { nome: string; cnpj: string } | null;
   obra: { id: string; nome: string } | null;
+  boleto_url: string | null;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -89,7 +90,7 @@ export default function HistoricoAdmin() {
         .from("lotes_mensais")
         .select(`
           id, competencia, total_colaboradores, total_reprovados, total_aprovados, 
-          valor_total, created_at, empresa_id,
+          valor_total, created_at, empresa_id, boleto_url,
           empresa:empresas(nome, cnpj),
           obra:obras(id, nome)
         `)
@@ -330,7 +331,7 @@ export default function HistoricoAdmin() {
                     const vidas = (lote.total_colaboradores || 0) - (lote.total_reprovados || 0);
                     const nota = notasMap.get(lote.id);
                     const nfEmitida = nota?.nf_emitida || false;
-                    const boletoUrl = nota?.boleto_url || null;
+                    const boletoUrl = nota?.boleto_url || lote.boleto_url || null;
                     const boletoGerado = !!(nota?.boleto_gerado || boletoUrl);
                     const nfUrl = nota?.nf_url || null;
                     const pago = nota?.pago || false;
