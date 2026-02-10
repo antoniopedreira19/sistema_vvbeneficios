@@ -89,7 +89,7 @@ export default function HistoricoAdmin() {
         .from("lotes_mensais")
         .select(`
           id, competencia, total_colaboradores, total_reprovados, total_aprovados, 
-          valor_total, created_at, empresa_id,
+          valor_total, created_at, empresa_id, boleto_url,
           empresa:empresas(nome, cnpj),
           obra:obras(id, nome)
         `)
