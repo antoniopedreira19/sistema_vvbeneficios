@@ -620,7 +620,7 @@ export default function Operacional() {
               setPages({ entrada: 1, seguradora: 1, pendencia: 1, concluido: 1 });
             }}
           >
-            <SelectTrigger className="w-full md:w-[180px] bg-background">
+            <SelectTrigger className="w-full sm:w-[170px] bg-background">
               <SelectValue placeholder="Competência" />
             </SelectTrigger>
             <SelectContent>
