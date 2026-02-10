@@ -591,16 +591,15 @@ export default function Operacional() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Building2 className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Operacional</h1>
-            <p className="text-muted-foreground">Gestão de Fluxo de Lotes</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <Building2 className="h-8 w-8 text-primary" />
+        <div>
+          <h1 className="text-3xl font-bold">Operacional</h1>
+          <p className="text-muted-foreground">Gestão de Fluxo de Lotes</p>
         </div>
+      </div>
 
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-full md:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
