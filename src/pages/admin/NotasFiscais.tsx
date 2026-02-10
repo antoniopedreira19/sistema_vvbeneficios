@@ -257,7 +257,10 @@ const NotasFiscais = () => {
       filtered = filtered.filter((nf) => (nfFilter === "sim" ? nf.nf_emitida : !nf.nf_emitida));
     }
     if (boletoFilter !== "todos") {
-      filtered = filtered.filter((nf) => (boletoFilter === "sim" ? nf.boleto_gerado : !nf.boleto_gerado));
+      filtered = filtered.filter((nf) => {
+        const temBoleto = !!(nf.boleto_url || nf.lotes_mensais?.boleto_url);
+        return boletoFilter === "sim" ? temBoleto : !temBoleto;
+      });
     }
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
