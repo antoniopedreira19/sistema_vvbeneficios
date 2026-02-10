@@ -254,6 +254,7 @@ export function LotesTable({
               {(actionType === "enviar_cliente" || actionType === "resolver_pendencia") && (
                 <TableHead className="text-center">Reprovados</TableHead>
               )}
+              <TableHead className="text-center">Cadastro Cartão</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right">Ação</TableHead>
             </TableRow>
