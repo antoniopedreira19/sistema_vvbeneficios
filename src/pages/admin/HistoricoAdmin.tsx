@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import { formatCNPJ, formatCPF } from "@/lib/validators";
+import { EscolherModeloPlanilhaDialog, ModeloPlanilha } from "@/components/admin/operacional/EscolherModeloPlanilhaDialog";
 
 interface LoteFaturado {
   id: string;
@@ -80,6 +81,8 @@ export default function HistoricoAdmin() {
   const [competenciaFilter, setCompetenciaFilter] = useState<string>("todas");
   const [sortBy, setSortBy] = useState<"alfabetica" | "recente">("recente");
   const [currentPage, setCurrentPage] = useState(1);
+  const [modeloPlanilhaDialogOpen, setModeloPlanilhaDialogOpen] = useState(false);
+  const [loteParaDownload, setLoteParaDownload] = useState<LoteFaturado | null>(null);
 
   const competencias = gerarCompetencias();
 
@@ -138,100 +141,136 @@ export default function HistoricoAdmin() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  // Download Excel
-  const handleDownload = async (lote: LoteFaturado) => {
+  // Abrir dialog para escolher modelo
+  const handleDownloadClick = (lote: LoteFaturado) => {
+    setLoteParaDownload(lote);
+    setModeloPlanilhaDialogOpen(true);
+  };
+
+  // Buscar itens do lote (reutilizado por ambos modelos)
+  const fetchItensLote = async (loteId: string) => {
+    const { data: itens, error } = await supabase
+      .from("colaboradores_lote")
+      .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
+      .eq("lote_id", loteId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    if (!itens || itens.length === 0) return null;
+
+    const cpfsProcessados = new Set<string>();
+    const itensUnicos = itens.filter((item) => {
+      const cpfLimpo = item.cpf.replace(/\D/g, "");
+      if (cpfsProcessados.has(cpfLimpo)) return false;
+      cpfsProcessados.add(cpfLimpo);
+      return true;
+    });
+    itensUnicos.sort((a, b) => a.nome.localeCompare(b.nome));
+    return itensUnicos;
+  };
+
+  const fetchCnpj = async (lote: LoteFaturado) => {
+    let cnpj = lote.empresa?.cnpj || "";
+    if (!cnpj && lote.empresa_id) {
+      const { data: emp } = await supabase
+        .from("empresas")
+        .select("cnpj")
+        .eq("id", lote.empresa_id)
+        .single();
+      if (emp) cnpj = emp.cnpj;
+    }
+    return cnpj.replace(/\D/g, "");
+  };
+
+  const parseDateString = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split("-");
+    if (parts.length === 3)
+      return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    return null;
+  };
+
+  const downloadBuffer = (buffer: ArrayBuffer, filename: string) => {
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleModeloSelecionado = async (modelo: ModeloPlanilha) => {
+    if (!loteParaDownload) return;
+    const lote = loteParaDownload;
+
     try {
       toast.info("Preparando download...");
-
-      const { data: itens, error } = await supabase
-        .from("colaboradores_lote")
-        .select("nome, sexo, cpf, data_nascimento, salario, classificacao_salario, created_at")
-        .eq("lote_id", lote.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      if (!itens || itens.length === 0) {
+      const itensUnicos = await fetchItensLote(lote.id);
+      if (!itensUnicos) {
         toast.warning("Não há colaboradores neste lote para baixar.");
         return;
       }
 
-      // Filtrar duplicatas
-      const cpfsProcessados = new Set();
-      const itensUnicos = itens.filter((item) => {
-        const cpfLimpo = item.cpf.replace(/\D/g, "");
-        if (cpfsProcessados.has(cpfLimpo)) return false;
-        cpfsProcessados.add(cpfLimpo);
-        return true;
-      });
-
-      itensUnicos.sort((a, b) => a.nome.localeCompare(b.nome));
-
-      let cnpj = lote.empresa?.cnpj || "";
-      if (!cnpj && lote.empresa_id) {
-        const { data: emp } = await supabase
-          .from("empresas")
-          .select("cnpj")
-          .eq("id", lote.empresa_id)
-          .single();
-        if (emp) cnpj = emp.cnpj;
-      }
-      cnpj = cnpj.replace(/\D/g, "");
-
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Relação de Vidas");
-      const headers = [
-        "NOME",
-        "SEXO",
-        "CPF",
-        "DATA NASCIMENTO",
-        "SALARIO",
-        "CLASSIFICACAO SALARIAL",
-        "CNPJ",
-      ];
-      const headerRow = worksheet.addRow(headers);
 
-      const COL_WIDTH = 37.11;
-      worksheet.columns = headers.map(() => ({ width: COL_WIDTH }));
-
-      headerRow.eachCell((cell) => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
-        cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
-        cell.alignment = { horizontal: "center" };
-      });
-
-      itensUnicos.forEach((c) => {
-        let dataNascDate = null;
-        if (c.data_nascimento) {
-          const parts = c.data_nascimento.split("-");
-          if (parts.length === 3)
-            dataNascDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        }
-
-        const row = worksheet.addRow([
-          c.nome ? c.nome.toUpperCase() : "",
-          c.sexo || "Masculino",
-          c.cpf ? formatCPF(c.cpf) : "",
-          dataNascDate,
-          c.salario ? Number(c.salario) : 0,
-          c.classificacao_salario || "",
-          formatCNPJ(cnpj),
-        ]);
-
-        if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
-        row.getCell(5).numFmt = "#,##0.00";
-      });
+      if (modelo === "padrao_alba") {
+        const cnpj = await fetchCnpj(lote);
+        const worksheet = workbook.addWorksheet("Relação de Vidas");
+        const headers = ["NOME", "SEXO", "CPF", "DATA NASCIMENTO", "SALARIO", "CLASSIFICACAO SALARIAL", "CNPJ"];
+        const headerRow = worksheet.addRow(headers);
+        worksheet.columns = headers.map(() => ({ width: 37.11 }));
+        headerRow.eachCell((cell) => {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
+          cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+          cell.alignment = { horizontal: "center" };
+        });
+        itensUnicos.forEach((c) => {
+          const dataNascDate = parseDateString(c.data_nascimento);
+          const row = worksheet.addRow([
+            c.nome ? c.nome.toUpperCase() : "",
+            c.sexo || "Masculino",
+            c.cpf ? formatCPF(c.cpf) : "",
+            dataNascDate,
+            c.salario ? Number(c.salario) : 0,
+            c.classificacao_salario || "",
+            formatCNPJ(cnpj),
+          ]);
+          if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
+          row.getCell(5).numFmt = "#,##0.00";
+        });
+      } else {
+        // Padrão Clube
+        const plano = `SINTEPAV-${lote.empresa?.nome || "EMPRESA"}`;
+        const expiracao = new Date(2040, 0, 1);
+        const worksheet = workbook.addWorksheet("Relação de Vidas");
+        const headers = ["NOME", "CPF", "PLANO", "DATA NASCIMENTO", "EXPIRAÇÃO"];
+        const headerRow = worksheet.addRow(headers);
+        worksheet.columns = headers.map(() => ({ width: 37.11 }));
+        headerRow.eachCell((cell) => {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
+          cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+          cell.alignment = { horizontal: "center" };
+        });
+        itensUnicos.forEach((c) => {
+          const dataNascDate = parseDateString(c.data_nascimento);
+          const row = worksheet.addRow([
+            c.nome ? c.nome.toUpperCase() : "",
+            c.cpf ? formatCPF(c.cpf) : "",
+            plano,
+            dataNascDate,
+            expiracao,
+          ]);
+          if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
+          row.getCell(5).numFmt = "dd/mm/yyyy";
+        });
+      }
 
       const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `HISTORICO_${lote.empresa?.nome.replace(/[^a-zA-Z0-9]/g, "")}_${lote.competencia.replace("/", "-")}.xlsx`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      const filename = `HISTORICO_${lote.empresa?.nome.replace(/[^a-zA-Z0-9]/g, "")}_${lote.competencia.replace("/", "-")}.xlsx`;
+      downloadBuffer(buffer as ArrayBuffer, filename);
       toast.success("Download concluído.");
     } catch (e: any) {
       console.error(e);
@@ -380,7 +419,7 @@ export default function HistoricoAdmin() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-52">
-                              <DropdownMenuItem onClick={() => handleDownload(lote)}>
+                              <DropdownMenuItem onClick={() => handleDownloadClick(lote)}>
                                 <FileSpreadsheet className="h-4 w-4 mr-2" />
                                 Baixar Planilha
                               </DropdownMenuItem>
@@ -443,6 +482,11 @@ export default function HistoricoAdmin() {
           )}
         </CardContent>
       </Card>
+      <EscolherModeloPlanilhaDialog
+        open={modeloPlanilhaDialogOpen}
+        onOpenChange={setModeloPlanilhaDialogOpen}
+        onSelect={handleModeloSelecionado}
+      />
     </div>
   );
 }
