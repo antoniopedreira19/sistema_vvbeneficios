@@ -9,7 +9,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Loader2, Send, FileCheck, AlertTriangle, CreditCard, FileDown, Pencil, Check, X } from "lucide-react";
+import { Loader2, Send, FileCheck, AlertTriangle, CreditCard, FileDown, Pencil, Check, X, CheckCircle2, XCircle } from "lucide-react";
 
 export interface LoteOperacional {
   id: string;
@@ -22,6 +22,7 @@ export interface LoteOperacional {
   empresa: { nome: string; cnpj?: string } | null;
   obra: { id: string; nome: string } | null;
   empresa_id?: string;
+  cadastro_cartao?: boolean;
 }
 
 interface LotesTableProps {
@@ -253,6 +254,7 @@ export function LotesTable({
               {(actionType === "enviar_cliente" || actionType === "resolver_pendencia") && (
                 <TableHead className="text-center">Reprovados</TableHead>
               )}
+              <TableHead className="text-center">Cadastro Cartão</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right">Ação</TableHead>
             </TableRow>
@@ -282,6 +284,13 @@ export function LotesTable({
                     <Badge variant="destructive">{lote.total_reprovados || 0}</Badge>
                   </TableCell>
                 )}
+                <TableCell className="text-center">
+                  {lote.cadastro_cartao ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-muted-foreground mx-auto" />
+                  )}
+                </TableCell>
                 <TableCell className="text-center text-xs">
                   {lote.status === "aguardando_processamento" && <Badge variant="secondary">Novo</Badge>}
                   {lote.status === "em_analise_seguradora" && <Badge variant="secondary">Na Seguradora</Badge>}

@@ -140,6 +140,7 @@ export default function Operacional() {
   // Estados de Filtro e Ordenação
   const [searchTerm, setSearchTerm] = useState("");
   const [competenciaFilter, setCompetenciaFilter] = useState<string>("todas");
+  const [cadastroCartaoFilter, setCadastroCartaoFilter] = useState<string>("todos");
   const [sortBy, setSortBy] = useState<SortType>("alfabetica");
 
   const [pages, setPages] = useState<Record<TabType, number>>({
@@ -175,7 +176,7 @@ export default function Operacional() {
         .from("lotes_mensais")
         .select(
           `
-          id, competencia, total_colaboradores, total_reprovados, total_aprovados, valor_total, created_at, status, empresa_id,
+          id, competencia, total_colaboradores, total_reprovados, total_aprovados, valor_total, created_at, status, empresa_id, cadastro_cartao,
           empresa:empresas(nome, cnpj),
           obra:obras(id, nome) 
         `,
@@ -214,7 +215,10 @@ export default function Operacional() {
     .filter((l) => {
       const matchSearch = l.empresa?.nome?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchCompetencia = competenciaFilter === "todas" || l.competencia === competenciaFilter;
-      return matchSearch && matchCompetencia;
+      const matchCadastroCartao = cadastroCartaoFilter === "todos" || 
+        (cadastroCartaoFilter === "sim" && l.cadastro_cartao) || 
+        (cadastroCartaoFilter === "nao" && !l.cadastro_cartao);
+      return matchSearch && matchCompetencia && matchCadastroCartao;
     })
     .sort((a, b) => {
       if (sortBy === "alfabetica") {
@@ -613,6 +617,24 @@ export default function Operacional() {
                   {comp}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={cadastroCartaoFilter}
+            onValueChange={(v) => {
+              setCadastroCartaoFilter(v);
+              setPages({ entrada: 1, seguradora: 1, pendencia: 1, concluido: 1 });
+            }}
+          >
+            <SelectTrigger className="w-full md:w-[180px] bg-background">
+              <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Cadastro Cartão" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="sim">Com Cartão</SelectItem>
+              <SelectItem value="nao">Sem Cartão</SelectItem>
             </SelectContent>
           </Select>
 
