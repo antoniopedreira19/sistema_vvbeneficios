@@ -284,6 +284,13 @@ export function LotesTable({
                     <Badge variant="destructive">{lote.total_reprovados || 0}</Badge>
                   </TableCell>
                 )}
+                <TableCell className="text-center">
+                  {lote.cadastro_cartao ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-muted-foreground mx-auto" />
+                  )}
+                </TableCell>
                 <TableCell className="text-center text-xs">
                   {lote.status === "aguardando_processamento" && <Badge variant="secondary">Novo</Badge>}
                   {lote.status === "em_analise_seguradora" && <Badge variant="secondary">Na Seguradora</Badge>}
