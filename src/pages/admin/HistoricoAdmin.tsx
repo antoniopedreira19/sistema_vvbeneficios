@@ -22,12 +22,23 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   History,
   Search,
   Download,
   CheckCircle2,
   XCircle,
   ArrowUpDown,
+  MoreHorizontal,
+  FileText,
+  CreditCard,
+  FileSpreadsheet,
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import { formatCNPJ, formatCPF } from "@/lib/validators";
