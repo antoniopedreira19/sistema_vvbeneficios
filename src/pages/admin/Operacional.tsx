@@ -997,6 +997,12 @@ export default function Operacional() {
           onOpenChange={(o) => !o && setLoteParaEditar(null)}
         />
       )}
+
+      <EscolherModeloPlanilhaDialog
+        open={modeloPlanilhaDialogOpen}
+        onOpenChange={setModeloPlanilhaDialogOpen}
+        onSelect={handleModeloSelecionado}
+      />
     </div>
   );
 }
