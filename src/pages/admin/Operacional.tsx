@@ -562,6 +562,20 @@ export default function Operacional() {
     setConfirmRejeitarDialog(true);
   };
 
+  const handleToggleCadastroCartao = async (lote: LoteOperacional) => {
+    const newValue = !lote.cadastro_cartao;
+    const { error } = await supabase
+      .from("lotes_mensais")
+      .update({ cadastro_cartao: newValue })
+      .eq("id", lote.id);
+    if (error) {
+      toast.error("Erro ao atualizar cadastro cartão");
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["lotes-operacional"] });
+    toast.success(newValue ? "Cadastro cartão marcado" : "Cadastro cartão desmarcado");
+  };
+
   const handleConfirmarEnvio = () => {
     if (!selectedLote) return;
     enviarNovoMutation.mutate(selectedLote);
@@ -690,6 +704,7 @@ export default function Operacional() {
           getTotalPages,
           handleDownloadLote,
           setLoteParaEditar,
+          handleToggleCadastroCartao,
         )}
         {renderTabContent(
           "seguradora",
@@ -704,6 +719,7 @@ export default function Operacional() {
           getTotalPages,
           handleDownloadLote,
           setLoteParaEditar,
+          handleToggleCadastroCartao,
         )}
         <TabsContent value="pendencia" className="mt-6">
           <TabCard title="Lotes com Pendências (Reprovados)" icon={AlertTriangle} color="text-red-500">
@@ -720,6 +736,7 @@ export default function Operacional() {
               onEdit={setLoteParaEditar}
               onResolve={handleResolve}
               onReject={handleReject}
+              onToggleCadastroCartao={handleToggleCadastroCartao}
             />
           </TabCard>
         </TabsContent>
@@ -787,6 +804,7 @@ export default function Operacional() {
               selectedIds={selectedLotesIds}
               onSelectionChange={setSelectedLotesIds}
               allLotesIds={getLotesByTab("concluido").map((l) => l.id)}
+              onToggleCadastroCartao={handleToggleCadastroCartao}
             />
           </TabCard>
         </TabsContent>
@@ -960,6 +978,7 @@ function renderTabContent(
   getTotal: any,
   onDownload: any,
   onEdit: any,
+  onToggleCadastroCartao: any,
 ) {
   return (
     <TabsContent value={value} className="mt-6">
@@ -975,6 +994,7 @@ function renderTabContent(
           actionLoading={actionLoading}
           onDownload={onDownload}
           onEdit={onEdit}
+          onToggleCadastroCartao={onToggleCadastroCartao}
         />
       </TabCard>
     </TabsContent>

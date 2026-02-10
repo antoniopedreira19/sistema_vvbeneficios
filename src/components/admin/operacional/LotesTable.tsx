@@ -37,6 +37,7 @@ interface LotesTableProps {
   onEdit?: (lote: LoteOperacional) => void;
   onResolve?: (lote: LoteOperacional) => void;
   onReject?: (lote: LoteOperacional) => void;
+  onToggleCadastroCartao?: (lote: LoteOperacional) => void;
   actionLoading?: string | null;
   // Props para seleção em massa
   selectable?: boolean;
@@ -57,6 +58,7 @@ export function LotesTable({
   onEdit,
   onResolve,
   onReject,
+  onToggleCadastroCartao,
   actionLoading,
   selectable = false,
   selectedIds = new Set(),
@@ -285,11 +287,17 @@ export function LotesTable({
                   </TableCell>
                 )}
                 <TableCell className="text-center">
-                  {lote.cadastro_cartao ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-muted-foreground mx-auto" />
-                  )}
+                  <button
+                    onClick={() => onToggleCadastroCartao?.(lote)}
+                    className="cursor-pointer hover:opacity-70 transition-opacity mx-auto block"
+                    title={lote.cadastro_cartao ? "Marcar como sem cartão" : "Marcar como com cartão"}
+                  >
+                    {lote.cadastro_cartao ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </button>
                 </TableCell>
                 <TableCell className="text-center text-xs">
                   {lote.status === "aguardando_processamento" && <Badge variant="secondary">Novo</Badge>}
