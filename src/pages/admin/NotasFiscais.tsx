@@ -84,9 +84,22 @@ const NotasFiscais = () => {
         await supabase.from("lotes_mensais").update({
           boleto_url: boletoUrl,
         }).eq("id", loteId);
+        // Update local state without refetching
+        setNotasFiscais((prev) =>
+          prev.map((nf) =>
+            nf.lote_id === loteId
+              ? {
+                  ...nf,
+                  boleto_url: boletoUrl,
+                  boleto_gerado: true,
+                  boleto_gerado_em: new Date().toISOString(),
+                  lotes_mensais: { ...nf.lotes_mensais, boleto_url: boletoUrl } as any,
+                }
+              : nf
+          )
+        );
       }
       toast.success("Boleto gerado com sucesso!");
-      await fetchNotasFiscais();
     } catch (error) {
       console.error("Erro ao gerar boleto:", error);
       toast.error("Erro ao gerar boleto. Tente novamente.");
