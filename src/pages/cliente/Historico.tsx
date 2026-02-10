@@ -394,8 +394,7 @@ const Historico = () => {
                     <TableHead>Status</TableHead>
                      <TableHead>NF Emitida</TableHead>
                      <TableHead>Anexo NF</TableHead>
-                     <TableHead>Boleto Gerado</TableHead>
-                     <TableHead>Anexo Boleto</TableHead>
+                     <TableHead>Boleto</TableHead>
                      <TableHead>Baixar Lista</TableHead>
                   </TableRow>
                 </TableHeader>
