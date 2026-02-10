@@ -37,8 +37,9 @@ import { AdminImportarLoteDialog } from "@/components/admin/operacional/AdminImp
 import { EditarLoteDialog } from "@/components/admin/operacional/EditarLoteDialog";
 import { CobrancaMassaDialog } from "@/components/admin/operacional/CobrancaMassaDialog";
 import ExcelJS from "exceljs";
-import JSZip from "jszip"; // Importante: Importar o JSZip
+import JSZip from "jszip";
 import { formatCNPJ, formatCPF } from "@/lib/validators";
+import { EscolherModeloPlanilhaDialog, type ModeloPlanilha } from "@/components/admin/operacional/EscolherModeloPlanilhaDialog";
 
 const ITEMS_PER_PAGE = 100;
 
@@ -133,6 +134,56 @@ const gerarBufferExcel = async (lote: LoteOperacional, itens: any[]) => {
   return await workbook.xlsx.writeBuffer();
 };
 
+// --- FUNÇÃO DE GERAÇÃO DO EXCEL PADRÃO CLUBE ---
+const gerarBufferExcelClube = async (lote: LoteOperacional, itens: any[]) => {
+  const cpfsProcessados = new Set();
+  const itensUnicos = itens.filter((item: any) => {
+    const cpfLimpo = item.cpf.replace(/\D/g, "");
+    if (cpfsProcessados.has(cpfLimpo)) return false;
+    cpfsProcessados.add(cpfLimpo);
+    return true;
+  });
+  itensUnicos.sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+
+  const nomeEmpresa = lote.empresa?.nome || "EMPRESA";
+  const plano = `SINTEPAV-${nomeEmpresa}`;
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Relação de Vidas");
+
+  const headers = ["NOME", "CPF", "PLANO", "DATA NASCIMENTO", "EXPIRAÇÃO"];
+  const headerRow = worksheet.addRow(headers);
+
+  const COL_WIDTH = 37.11;
+  worksheet.columns = headers.map(() => ({ width: COL_WIDTH }));
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
+    cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+    cell.alignment = { horizontal: "center" };
+  });
+
+  const expiracao = new Date(2040, 0, 1); // 01/01/2040
+
+  itensUnicos.forEach((c: any) => {
+    let dataNascDate = null;
+    if (c.data_nascimento) {
+      const parts = c.data_nascimento.split("-");
+      if (parts.length === 3) dataNascDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    }
+    const row = worksheet.addRow([
+      c.nome?.toUpperCase(),
+      formatCPF(c.cpf),
+      plano,
+      dataNascDate,
+      expiracao,
+    ]);
+    if (dataNascDate) row.getCell(4).numFmt = "dd/mm/yyyy";
+    row.getCell(5).numFmt = "dd/mm/yyyy";
+  });
+
+  return await workbook.xlsx.writeBuffer();
+};
+
 export default function Operacional() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>("entrada");
@@ -166,7 +217,10 @@ export default function Operacional() {
   const [selectedLotesIds, setSelectedLotesIds] = useState<Set<string>>(new Set());
   const [confirmFaturarMassaDialog, setConfirmFaturarMassaDialog] = useState(false);
   const [faturandoMassa, setFaturandoMassa] = useState(false);
-  const [baixandoMassa, setBaixandoMassa] = useState(false); // Novo estado
+  const [baixandoMassa, setBaixandoMassa] = useState(false);
+  const [modeloPlanilhaDialogOpen, setModeloPlanilhaDialogOpen] = useState(false);
+  const [loteParaDownload, setLoteParaDownload] = useState<LoteOperacional | null>(null);
+  const [downloadModoMassa, setDownloadModoMassa] = useState(false);
 
   // --- QUERY ---
   const { data: lotes = [], isLoading } = useQuery({
@@ -325,67 +379,7 @@ export default function Operacional() {
     },
   });
 
-  // --- NOVA FUNÇÃO: BAIXAR EM MASSA (ZIP) ---
-  const handleBaixarEmMassa = async () => {
-    if (selectedLotesIds.size === 0) return;
 
-    setBaixandoMassa(true);
-    toast.info("Iniciando geração do ZIP. Isso pode levar alguns instantes...");
-
-    try {
-      const zip = new JSZip();
-      const lotesParaBaixar = getLotesByTab("concluido").filter((l) => selectedLotesIds.has(l.id));
-
-      let processados = 0;
-
-      for (const lote of lotesParaBaixar) {
-        try {
-          // 1. Buscar Itens
-          const itens = await fetchAllColaboradores(lote.id);
-
-          if (itens && itens.length > 0) {
-            // 2. Gerar Buffer do Excel
-            const buffer = await gerarBufferExcel(lote, itens);
-
-            // 3. Definir nome do arquivo
-            const nomeEmpresa = (lote.empresa?.nome || "EMPRESA").replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
-            const competencia = lote.competencia.replace("/", "-");
-            const fileName = `SEGURADORA_${nomeEmpresa}_${competencia}.xlsx`;
-
-            // 4. Adicionar ao ZIP
-            zip.file(fileName, buffer);
-            processados++;
-          }
-        } catch (err) {
-          console.error(`Erro ao gerar arquivo para lote ${lote.id}`, err);
-        }
-      }
-
-      if (processados === 0) {
-        toast.warning("Nenhum arquivo válido gerado.");
-        setBaixandoMassa(false);
-        return;
-      }
-
-      // 5. Gerar o arquivo ZIP final e baixar
-      const zipContent = await zip.generateAsync({ type: "blob" });
-      const url = window.URL.createObjectURL(zipContent);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Lotes_Prontos_${new Date().getTime()}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success(`${processados} arquivos baixados em ZIP!`);
-    } catch (error: any) {
-      console.error(error);
-      toast.error("Erro ao gerar ZIP: " + error.message);
-    } finally {
-      setBaixandoMassa(false);
-    }
-  };
 
   const handleFaturarMassa = async () => {
     if (selectedLotesIds.size === 0) return;
@@ -521,26 +515,90 @@ export default function Operacional() {
     },
   });
 
-  const handleDownloadLote = async (lote: LoteOperacional) => {
-    try {
-      toast.info("Preparando download...");
-      const itens = await fetchAllColaboradores(lote.id);
-      if (!itens || itens.length === 0) {
-        toast.warning("Não há colaboradores para baixar.");
-        return;
+  const handleDownloadLote = (lote: LoteOperacional) => {
+    setLoteParaDownload(lote);
+    setDownloadModoMassa(false);
+    setModeloPlanilhaDialogOpen(true);
+  };
+
+  const handleBaixarEmMassaClick = () => {
+    if (selectedLotesIds.size === 0) return;
+    setDownloadModoMassa(true);
+    setLoteParaDownload(null);
+    setModeloPlanilhaDialogOpen(true);
+  };
+
+  const handleModeloSelecionado = async (modelo: ModeloPlanilha) => {
+    const gerador = modelo === "padrao_clube" ? gerarBufferExcelClube : gerarBufferExcel;
+
+    if (downloadModoMassa) {
+      // Baixar em massa (ZIP)
+      setBaixandoMassa(true);
+      toast.info("Iniciando geração do ZIP...");
+      try {
+        const zip = new JSZip();
+        const lotesParaBaixar = getLotesByTab("concluido").filter((l) => selectedLotesIds.has(l.id));
+        let processados = 0;
+
+        for (const lote of lotesParaBaixar) {
+          try {
+            const itens = await fetchAllColaboradores(lote.id);
+            if (itens && itens.length > 0) {
+              const buffer = await gerador(lote, itens);
+              const nomeEmpresa = (lote.empresa?.nome || "EMPRESA").replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+              const competencia = lote.competencia.replace("/", "-");
+              const fileName = `SEGURADORA_${nomeEmpresa}_${competencia}.xlsx`;
+              zip.file(fileName, buffer);
+              processados++;
+            }
+          } catch (err) {
+            console.error(`Erro ao gerar arquivo para lote ${lote.id}`, err);
+          }
+        }
+
+        if (processados === 0) {
+          toast.warning("Nenhum arquivo válido gerado.");
+          return;
+        }
+
+        const zipContent = await zip.generateAsync({ type: "blob" });
+        const url = window.URL.createObjectURL(zipContent);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Lotes_Prontos_${new Date().getTime()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success(`${processados} arquivos baixados em ZIP!`);
+      } catch (error: any) {
+        console.error(error);
+        toast.error("Erro ao gerar ZIP: " + error.message);
+      } finally {
+        setBaixandoMassa(false);
       }
-      const buffer = await gerarBufferExcel(lote, itens);
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `SEGURADORA_${lote.empresa?.nome.replace(/[^a-zA-Z0-9]/g, "")}_${lote.competencia.replace("/", "-")}.xlsx`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      toast.success("Download concluído.");
-    } catch (e: any) {
-      console.error(e);
-      toast.error("Erro ao gerar planilha: " + e.message);
+    } else if (loteParaDownload) {
+      // Download individual
+      try {
+        toast.info("Preparando download...");
+        const itens = await fetchAllColaboradores(loteParaDownload.id);
+        if (!itens || itens.length === 0) {
+          toast.warning("Não há colaboradores para baixar.");
+          return;
+        }
+        const buffer = await gerador(loteParaDownload, itens);
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `SEGURADORA_${loteParaDownload.empresa?.nome.replace(/[^a-zA-Z0-9]/g, "")}_${loteParaDownload.competencia.replace("/", "-")}.xlsx`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        toast.success("Download concluído.");
+      } catch (e: any) {
+        console.error(e);
+        toast.error("Erro ao gerar planilha: " + e.message);
+      }
     }
   };
 
@@ -765,7 +823,7 @@ export default function Operacional() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={handleBaixarEmMassa}
+                  onClick={handleBaixarEmMassaClick}
                   disabled={faturandoMassa || baixandoMassa}
                   className="bg-blue-600 text-white hover:bg-blue-700"
                 >
@@ -939,6 +997,12 @@ export default function Operacional() {
           onOpenChange={(o) => !o && setLoteParaEditar(null)}
         />
       )}
+
+      <EscolherModeloPlanilhaDialog
+        open={modeloPlanilhaDialogOpen}
+        onOpenChange={setModeloPlanilhaDialogOpen}
+        onSelect={handleModeloSelecionado}
+      />
     </div>
   );
 }
