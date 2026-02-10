@@ -498,7 +498,7 @@ const Historico = () => {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                         Nenhuma lista enviada encontrada.
                       </TableCell>
                     </TableRow>
