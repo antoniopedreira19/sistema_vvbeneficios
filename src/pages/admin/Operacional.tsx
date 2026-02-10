@@ -667,7 +667,6 @@ export default function Operacional() {
           </Button>
 
           <CobrancaMassaDialog />
-        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)}>
