@@ -104,7 +104,7 @@ const NotasFiscais = () => {
           *,
           empresas(nome),
           obras(nome),
-          lotes_mensais(valor_total)
+          lotes_mensais(valor_total, boleto_url)
         `,
         )
         .order("competencia", {
@@ -503,37 +503,40 @@ const NotasFiscais = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        {nf.boleto_url ? (
-                          <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" className="gap-1" onClick={() => window.open(nf.boleto_url!, '_blank')}>
-                              <FileText className="h-4 w-4" />
-                              Ver Boleto
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
+                        {(() => {
+                          const boletoUrl = nf.boleto_url || (nf.lotes_mensais as any)?.boleto_url;
+                          return boletoUrl ? (
+                            <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm" className="gap-1" onClick={() => window.open(boletoUrl, '_blank')}>
+                                <FileText className="h-4 w-4" />
+                                Ver Boleto
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveFile(nf, "boleto_url")}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
                             <Button
-                              variant="ghost"
                               size="sm"
-                              onClick={() => handleRemoveFile(nf, "boleto_url")}
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              className="gap-1"
+                              disabled={generatingBoletoId === nf.lote_id}
+                              onClick={() => handleGerarBoleto(nf.lote_id, nf.id)}
                             >
-                              <X className="h-4 w-4" />
+                              {generatingBoletoId === nf.lote_id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CreditCard className="h-4 w-4" />
+                              )}
+                              {generatingBoletoId === nf.lote_id ? "Gerando..." : "Gerar Boleto"}
                             </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="gap-1"
-                            disabled={generatingBoletoId === nf.lote_id}
-                            onClick={() => handleGerarBoleto(nf.lote_id, nf.id)}
-                          >
-                            {generatingBoletoId === nf.lote_id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <CreditCard className="h-4 w-4" />
-                            )}
-                            {generatingBoletoId === nf.lote_id ? "Gerando..." : "Gerar Boleto"}
-                          </Button>
-                        )}
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <Checkbox
