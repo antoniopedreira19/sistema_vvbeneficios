@@ -10,7 +10,8 @@ import {
   Building2,
   Calendar,
   ExternalLink,
-  Download
+  Download,
+  CreditCard
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,15 +41,39 @@ import { formatCPF, formatCNPJ } from "@/lib/validators";
 import ExcelJS from "exceljs";
 import { toast } from "sonner";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 const ITEMS_PER_PAGE = 10;
 
 const Historico = () => {
   const { profile, loading: profileLoading } = useUserRole();
   const empresaId = profile?.empresa_id;
+  const queryClient = useQueryClient();
 
   const [selectedObra, setSelectedObra] = useState("all");
   const [selectedCompetencia, setSelectedCompetencia] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [generatingBoletoId, setGeneratingBoletoId] = useState<string | null>(null);
+
+  const handleGerarBoleto = async (loteId: string) => {
+    setGeneratingBoletoId(loteId);
+    try {
+      const response = await fetch("https://grifoworkspace.app.n8n.cloud/webhook/gerar-boleto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loteId }),
+      });
+      if (!response.ok) throw new Error("Erro na requisição");
+      toast.success("Boleto gerado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["historico-lotes"] });
+      queryClient.invalidateQueries({ queryKey: ["notas-fiscais-cliente"] });
+    } catch (error) {
+      console.error("Erro ao gerar boleto:", error);
+      toast.error("Erro ao gerar boleto. Tente novamente.");
+    } finally {
+      setGeneratingBoletoId(null);
+    }
+  };
 
   // Buscar obras da empresa
   const { data: obras, isLoading: obrasLoading } = useQuery({
@@ -369,8 +394,7 @@ const Historico = () => {
                     <TableHead>Status</TableHead>
                      <TableHead>NF Emitida</TableHead>
                      <TableHead>Anexo NF</TableHead>
-                     <TableHead>Boleto Gerado</TableHead>
-                     <TableHead>Anexo Boleto</TableHead>
+                     <TableHead>Boleto</TableHead>
                      <TableHead>Baixar Lista</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -423,30 +447,37 @@ const Historico = () => {
                             )}
                           </TableCell>
                           <TableCell>
-                            {notaFiscal ? (
-                              notaFiscal.boleto_gerado ? (
-                                <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Sim</Badge>
-                              ) : (
-                                <Badge variant="secondary">Não</Badge>
-                              )
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {notaFiscal?.boleto_url ? (
-                              <a
-                                href={notaFiscal.boleto_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                            {notaFiscal?.boleto_url || lote.boleto_url ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(notaFiscal?.boleto_url || lote.boleto_url, '_blank');
+                                }}
                               >
                                 <FileText className="h-4 w-4" />
                                 Ver Boleto
                                 <ExternalLink className="h-3 w-3" />
-                              </a>
+                              </Button>
                             ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
+                              <Button
+                                size="sm"
+                                className="gap-1"
+                                disabled={generatingBoletoId === lote.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGerarBoleto(lote.id);
+                                }}
+                              >
+                                {generatingBoletoId === lote.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CreditCard className="h-4 w-4" />
+                                )}
+                                {generatingBoletoId === lote.id ? "Gerando..." : "Gerar Boleto"}
+                              </Button>
                             )}
                           </TableCell>
                           <TableCell>
@@ -467,7 +498,7 @@ const Historico = () => {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                         Nenhuma lista enviada encontrada.
                       </TableCell>
                     </TableRow>
