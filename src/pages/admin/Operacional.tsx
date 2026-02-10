@@ -600,7 +600,7 @@ export default function Operacional() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-full md:w-64">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por empresa..."
