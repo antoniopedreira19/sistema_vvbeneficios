@@ -22,6 +22,7 @@ export interface LoteOperacional {
   empresa: { nome: string; cnpj?: string } | null;
   obra: { id: string; nome: string } | null;
   empresa_id?: string;
+  cadastro_cartao?: boolean;
 }
 
 interface LotesTableProps {
