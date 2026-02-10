@@ -64,7 +64,7 @@ const NotasFiscais = () => {
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [generatingBoletoId, setGeneratingBoletoId] = useState<string | null>(null);
 
-  const handleGerarBoleto = async (loteId: string) => {
+  const handleGerarBoleto = async (loteId: string, notaFiscalId: string) => {
     setGeneratingBoletoId(loteId);
     try {
       const response = await fetch("https://grifoworkspace.app.n8n.cloud/webhook/gerar-boleto", {
@@ -73,6 +73,18 @@ const NotasFiscais = () => {
         body: JSON.stringify({ loteId }),
       });
       if (!response.ok) throw new Error("Erro na requisição");
+      const result = await response.json();
+      const boletoUrl = result?.boleto_url || result?.bankSlipUrl || result?.invoiceUrl || null;
+      if (boletoUrl) {
+        await supabase.from("notas_fiscais").update({
+          boleto_url: boletoUrl,
+          boleto_gerado: true,
+          boleto_gerado_em: new Date().toISOString(),
+        }).eq("id", notaFiscalId);
+        await supabase.from("lotes_mensais").update({
+          boleto_url: boletoUrl,
+        }).eq("id", loteId);
+      }
       toast.success("Boleto gerado com sucesso!");
       await fetchNotasFiscais();
     } catch (error) {
@@ -512,7 +524,7 @@ const NotasFiscais = () => {
                             size="sm"
                             className="gap-1"
                             disabled={generatingBoletoId === nf.lote_id}
-                            onClick={() => handleGerarBoleto(nf.lote_id)}
+                            onClick={() => handleGerarBoleto(nf.lote_id, nf.id)}
                           >
                             {generatingBoletoId === nf.lote_id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
