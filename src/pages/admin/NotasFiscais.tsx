@@ -62,6 +62,26 @@ const NotasFiscais = () => {
   const [boletoFilter, setBoletoFilter] = useState<string>("todos");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [generatingBoletoId, setGeneratingBoletoId] = useState<string | null>(null);
+
+  const handleGerarBoleto = async (loteId: string) => {
+    setGeneratingBoletoId(loteId);
+    try {
+      const response = await fetch("https://grifoworkspace.app.n8n.cloud/webhook/gerar-boleto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loteId }),
+      });
+      if (!response.ok) throw new Error("Erro na requisição");
+      toast.success("Boleto gerado com sucesso!");
+      await fetchNotasFiscais();
+    } catch (error) {
+      console.error("Erro ao gerar boleto:", error);
+      toast.error("Erro ao gerar boleto. Tente novamente.");
+    } finally {
+      setGeneratingBoletoId(null);
+    }
+  };
   const fetchNotasFiscais = async () => {
     try {
       setLoading(true);
