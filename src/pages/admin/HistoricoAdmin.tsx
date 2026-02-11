@@ -39,9 +39,12 @@ import {
   FileText,
   CreditCard,
   FileSpreadsheet,
+  PackageOpen,
 } from "lucide-react";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { formatCNPJ, formatCPF } from "@/lib/validators";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EscolherModeloPlanilhaDialog, ModeloPlanilha } from "@/components/admin/operacional/EscolherModeloPlanilhaDialog";
 
 interface LoteFaturado {
@@ -83,6 +86,9 @@ export default function HistoricoAdmin() {
   const [currentPage, setCurrentPage] = useState(1);
   const [modeloPlanilhaDialogOpen, setModeloPlanilhaDialogOpen] = useState(false);
   const [loteParaDownload, setLoteParaDownload] = useState<LoteFaturado | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [downloadModoMassa, setDownloadModoMassa] = useState(false);
+  const [baixandoMassa, setBaixandoMassa] = useState(false);
 
   const competencias = gerarCompetencias();
 
@@ -144,7 +150,32 @@ export default function HistoricoAdmin() {
   // Abrir dialog para escolher modelo
   const handleDownloadClick = (lote: LoteFaturado) => {
     setLoteParaDownload(lote);
+    setDownloadModoMassa(false);
     setModeloPlanilhaDialogOpen(true);
+  };
+
+  const handleBaixarEmMassaClick = () => {
+    if (selectedIds.size === 0) return;
+    setDownloadModoMassa(true);
+    setLoteParaDownload(null);
+    setModeloPlanilhaDialogOpen(true);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredLotes.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredLotes.map((l) => l.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   // Buscar itens do lote (reutilizado por ambos modelos)
@@ -203,6 +234,86 @@ export default function HistoricoAdmin() {
   };
 
   const handleModeloSelecionado = async (modelo: ModeloPlanilha) => {
+    if (downloadModoMassa) {
+      setBaixandoMassa(true);
+      toast.info("Iniciando geração do ZIP...");
+      try {
+        const zip = new JSZip();
+        const lotesParaBaixar = filteredLotes.filter((l) => selectedIds.has(l.id));
+        let processados = 0;
+
+        for (const lote of lotesParaBaixar) {
+          try {
+            const itensUnicos = await fetchItensLote(lote.id);
+            if (!itensUnicos || itensUnicos.length === 0) continue;
+
+            const workbook = new ExcelJS.Workbook();
+            if (modelo === "padrao_alba") {
+              const cnpj = await fetchCnpj(lote);
+              const ws = workbook.addWorksheet("Relação de Vidas");
+              const headers = ["NOME", "SEXO", "CPF", "DATA NASCIMENTO", "SALARIO", "CLASSIFICACAO SALARIAL", "CNPJ"];
+              const hr = ws.addRow(headers);
+              ws.columns = headers.map(() => ({ width: 37.11 }));
+              hr.eachCell((cell) => {
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
+                cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+                cell.alignment = { horizontal: "center" };
+              });
+              itensUnicos.forEach((c) => {
+                const d = parseDateString(c.data_nascimento);
+                const row = ws.addRow([c.nome?.toUpperCase() || "", c.sexo || "Masculino", c.cpf ? formatCPF(c.cpf) : "", d, c.salario ? Number(c.salario) : 0, c.classificacao_salario || "", formatCNPJ(cnpj)]);
+                if (d) row.getCell(4).numFmt = "dd/mm/yyyy";
+                row.getCell(5).numFmt = "#,##0.00";
+              });
+            } else {
+              const plano = `SINTEPAV-${lote.empresa?.nome || "EMPRESA"}`;
+              const expiracao = new Date(2040, 0, 1);
+              const ws = workbook.addWorksheet("Relação de Vidas");
+              const headers = ["NOME", "CPF", "PLANO", "DATA NASCIMENTO", "EXPIRAÇÃO"];
+              const hr = ws.addRow(headers);
+              ws.columns = headers.map(() => ({ width: 37.11 }));
+              hr.eachCell((cell) => {
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
+                cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+                cell.alignment = { horizontal: "center" };
+              });
+              itensUnicos.forEach((c) => {
+                const d = parseDateString(c.data_nascimento);
+                const row = ws.addRow([c.nome?.toUpperCase() || "", c.cpf ? formatCPF(c.cpf) : "", plano, d, expiracao]);
+                if (d) row.getCell(4).numFmt = "dd/mm/yyyy";
+                row.getCell(5).numFmt = "dd/mm/yyyy";
+              });
+            }
+
+            const buffer = await workbook.xlsx.writeBuffer();
+            const nomeEmpresa = (lote.empresa?.nome || "EMPRESA").replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+            zip.file(`HISTORICO_${nomeEmpresa}_${lote.competencia.replace("/", "-")}.xlsx`, buffer);
+            processados++;
+          } catch (err) {
+            console.error(`Erro ao gerar arquivo para lote ${lote.id}`, err);
+          }
+        }
+
+        if (processados === 0) { toast.warning("Nenhum arquivo válido gerado."); return; }
+        const zipContent = await zip.generateAsync({ type: "blob" });
+        const url = window.URL.createObjectURL(zipContent);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Historico_Lotes_${new Date().getTime()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success(`${processados} arquivos baixados em ZIP!`);
+      } catch (error: any) {
+        console.error(error);
+        toast.error("Erro ao gerar ZIP: " + error.message);
+      } finally {
+        setBaixandoMassa(false);
+      }
+      return;
+    }
+
     if (!loteParaDownload) return;
     const lote = loteParaDownload;
 
@@ -242,7 +353,6 @@ export default function HistoricoAdmin() {
           row.getCell(5).numFmt = "#,##0.00";
         });
       } else {
-        // Padrão Clube
         const plano = `SINTEPAV-${lote.empresa?.nome || "EMPRESA"}`;
         const expiracao = new Date(2040, 0, 1);
         const worksheet = workbook.addWorksheet("Relação de Vidas");
@@ -336,6 +446,14 @@ export default function HistoricoAdmin() {
             <Download className="h-4 w-4 mr-2" />
             Exportar XLSX
           </Button>
+          <Button
+            variant="outline"
+            onClick={handleBaixarEmMassaClick}
+            disabled={selectedIds.size === 0 || baixandoMassa}
+          >
+            <PackageOpen className="h-4 w-4 mr-2" />
+            {baixandoMassa ? "Gerando..." : `Baixar Selecionados (${selectedIds.size})`}
+          </Button>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -400,7 +518,13 @@ export default function HistoricoAdmin() {
             <>
               <Table>
                 <TableHeader>
-                  <TableRow>
+                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={filteredLotes.length > 0 && selectedIds.size === filteredLotes.length}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead>Empresa</TableHead>
                     <TableHead>Competência</TableHead>
                     <TableHead className="text-center">Vidas</TableHead>
@@ -423,6 +547,12 @@ export default function HistoricoAdmin() {
 
                     return (
                       <TableRow key={lote.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(lote.id)}
+                            onCheckedChange={() => toggleSelect(lote.id)}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">
                           <div>{lote.empresa?.nome || "-"}</div>
                           {lote.obra?.nome && (
