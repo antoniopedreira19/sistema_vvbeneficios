@@ -435,72 +435,70 @@ export default function HistoricoAdmin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <History className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Histórico</h1>
-            <p className="text-muted-foreground">Lotes faturados</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <History className="h-8 w-8 text-primary" />
+        <div>
+          <h1 className="text-3xl font-bold">Histórico</h1>
+          <p className="text-muted-foreground">Lotes faturados</p>
         </div>
+      </div>
 
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-          <Button variant="outline" onClick={handleExportarTabela} disabled={filteredLotes.length === 0}>
-            <Download className="h-4 w-4 mr-2" />
-            Exportar XLSX
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleBaixarEmMassaClick}
-            disabled={selectedIds.size === 0 || baixandoMassa}
-          >
-            <PackageOpen className="h-4 w-4 mr-2" />
-            {baixandoMassa ? "Gerando..." : `Baixar Selecionados (${selectedIds.size})`}
-          </Button>
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por empresa..."
-              className="pl-8 bg-background"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-
-          <Select
-            value={competenciaFilter}
-            onValueChange={(v) => {
-              setCompetenciaFilter(v);
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" onClick={handleExportarTabela} disabled={filteredLotes.length === 0}>
+          <Download className="h-4 w-4 mr-2" />
+          Exportar XLSX
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleBaixarEmMassaClick}
+          disabled={selectedIds.size === 0 || baixandoMassa}
+        >
+          <PackageOpen className="h-4 w-4 mr-2" />
+          {baixandoMassa ? "Gerando..." : `Baixar Selecionados (${selectedIds.size})`}
+        </Button>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por empresa..."
+            className="pl-8 bg-background"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-          >
-            <SelectTrigger className="w-full md:w-[180px] bg-background">
-              <SelectValue placeholder="Competência" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas as competências</SelectItem>
-              {competencias.map((comp) => (
-                <SelectItem key={comp} value={comp}>
-                  {comp}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "alfabetica" | "recente")}>
-            <SelectTrigger className="w-full md:w-[180px] bg-background">
-              <ArrowUpDown className="mr-2 h-4 w-4 text-muted-foreground" />
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="alfabetica">Ordem Alfabética</SelectItem>
-              <SelectItem value="recente">Mais Recentes</SelectItem>
-            </SelectContent>
-          </Select>
+          />
         </div>
+
+        <Select
+          value={competenciaFilter}
+          onValueChange={(v) => {
+            setCompetenciaFilter(v);
+            setCurrentPage(1);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-[170px] bg-background">
+            <SelectValue placeholder="Competência" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas as competências</SelectItem>
+            {competencias.map((comp) => (
+              <SelectItem key={comp} value={comp}>
+                {comp}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as "alfabetica" | "recente")}>
+          <SelectTrigger className="w-full sm:w-[170px] bg-background">
+            <ArrowUpDown className="mr-2 h-4 w-4 text-muted-foreground" />
+            <SelectValue placeholder="Ordenar por" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="alfabetica">Ordem Alfabética</SelectItem>
+            <SelectItem value="recente">Mais Recentes</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Card>
