@@ -287,7 +287,8 @@ export default function HistoricoAdmin() {
 
             const buffer = await workbook.xlsx.writeBuffer();
             const nomeEmpresa = (lote.empresa?.nome || "EMPRESA").replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
-            zip.file(`HISTORICO_${nomeEmpresa}_${lote.competencia.replace("/", "-")}.xlsx`, buffer);
+            const nomeObra = lote.obra?.nome ? ` - ${lote.obra.nome.replace(/[^a-zA-Z0-9 ]/g, "").toUpperCase()}` : "";
+            zip.file(`HISTORICO_${nomeEmpresa}${nomeObra.replace(/\s+/g, "_")}_${lote.competencia.replace("/", "-")}.xlsx`, buffer);
             processados++;
           } catch (err) {
             console.error(`Erro ao gerar arquivo para lote ${lote.id}`, err);
@@ -379,7 +380,9 @@ export default function HistoricoAdmin() {
       }
 
       const buffer = await workbook.xlsx.writeBuffer();
-      const filename = `HISTORICO_${lote.empresa?.nome.replace(/[^a-zA-Z0-9]/g, "")}_${lote.competencia.replace("/", "-")}.xlsx`;
+      const nomeBase = lote.empresa?.nome?.replace(/[^a-zA-Z0-9]/g, "") || "EMPRESA";
+      const obraSuffix = lote.obra?.nome ? `_${lote.obra.nome.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_").toUpperCase()}` : "";
+      const filename = `HISTORICO_${nomeBase}${obraSuffix}_${lote.competencia.replace("/", "-")}.xlsx`;
       downloadBuffer(buffer as ArrayBuffer, filename);
       toast.success("Download concluído.");
     } catch (e: any) {

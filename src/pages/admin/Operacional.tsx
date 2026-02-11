@@ -546,8 +546,9 @@ export default function Operacional() {
             if (itens && itens.length > 0) {
               const buffer = await gerador(lote, itens);
               const nomeEmpresa = (lote.empresa?.nome || "EMPRESA").replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+              const nomeObra = lote.obra?.nome ? `_-_${lote.obra.nome.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_").toUpperCase()}` : "";
               const competencia = lote.competencia.replace("/", "-");
-              const fileName = `SEGURADORA_${nomeEmpresa}_${competencia}.xlsx`;
+              const fileName = `SEGURADORA_${nomeEmpresa}${nomeObra}_${competencia}.xlsx`;
               zip.file(fileName, buffer);
               processados++;
             }
@@ -591,7 +592,8 @@ export default function Operacional() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `SEGURADORA_${loteParaDownload.empresa?.nome.replace(/[^a-zA-Z0-9]/g, "")}_${loteParaDownload.competencia.replace("/", "-")}.xlsx`;
+        const obraSuffix = loteParaDownload.obra?.nome ? `_-_${loteParaDownload.obra.nome.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_").toUpperCase()}` : "";
+        a.download = `SEGURADORA_${loteParaDownload.empresa?.nome.replace(/[^a-zA-Z0-9]/g, "")}${obraSuffix}_${loteParaDownload.competencia.replace("/", "-")}.xlsx`;
         a.click();
         window.URL.revokeObjectURL(url);
         toast.success("Download concluído.");
