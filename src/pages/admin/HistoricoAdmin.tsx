@@ -58,7 +58,7 @@ interface LoteFaturado {
   boleto_url: string | null;
 }
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 100;
 
 // Gerar competências para o filtro (últimos 12 meses + próximos 6)
 const gerarCompetencias = (): string[] => {
@@ -278,6 +278,48 @@ export default function HistoricoAdmin() {
     }
   };
 
+  const handleExportarTabela = async () => {
+    try {
+      toast.info("Preparando exportação...");
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Histórico");
+      const headers = ["EMPRESA", "OBRA", "COMPETÊNCIA", "VIDAS", "VALOR", "NF EMITIDA", "BOLETO GERADO", "PAGO"];
+      const headerRow = worksheet.addRow(headers);
+      worksheet.columns = [
+        { width: 40 }, { width: 30 }, { width: 20 }, { width: 10 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 10 },
+      ];
+      headerRow.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF203455" } };
+        cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+        cell.alignment = { horizontal: "center" };
+      });
+      filteredLotes.forEach((lote) => {
+        const vidas = (lote.total_colaboradores || 0) - (lote.total_reprovados || 0);
+        const nota = notasMap.get(lote.id);
+        const nfEmitida = nota?.nf_emitida || false;
+        const boletoUrl = nota?.boleto_url || lote.boleto_url || null;
+        const boletoGerado = !!(nota?.boleto_gerado || boletoUrl);
+        const pago = nota?.pago || false;
+        worksheet.addRow([
+          lote.empresa?.nome || "-",
+          lote.obra?.nome || "-",
+          lote.competencia,
+          vidas,
+          lote.valor_total || 0,
+          nfEmitida ? "Sim" : "Não",
+          boletoGerado ? "Sim" : "Não",
+          pago ? "Sim" : "Não",
+        ]);
+      });
+      const buffer = await workbook.xlsx.writeBuffer();
+      downloadBuffer(buffer as ArrayBuffer, `HISTORICO_LOTES_FATURADOS.xlsx`);
+      toast.success("Exportação concluída.");
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erro ao exportar: " + e.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -290,6 +332,10 @@ export default function HistoricoAdmin() {
         </div>
 
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          <Button variant="outline" onClick={handleExportarTabela} disabled={filteredLotes.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar XLSX
+          </Button>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
