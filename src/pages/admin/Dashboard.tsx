@@ -440,7 +440,7 @@ export default function Dashboard() {
         />
 
         <KpiCard
-          title="Empresas no Mês"
+          title="Listas recebidas no Mês"
           value={totalEmpresasNoMes}
           icon={CheckCircle2}
           description={`Enviaram em ${selectedCompetencia.split("/")[0]}`}
